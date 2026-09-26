@@ -54,6 +54,7 @@ function installFixture() {
     user: { id: 'ui-test-me', nickname: 'UI검사중' },
     model: { ready: true, name: 'TEST ONLY UI fixture', error: null, scores_updated_at: null },
     similarity_reference: { ready: true, error: null, vocabulary_size: 49485, top1: 88.1234, top10: 79.5678, top1000: 24.5 },
+    player_stats: null,
     game: {
       status: 'playing', started_at: new Date(Date.parse(now) - 754000).toISOString(), completed_at: null,
       elapsed_ms: 754000, attempts: 7,
@@ -69,7 +70,11 @@ function installFixture() {
       playing: [{ user_id: 'ui-test-me', nickname: 'UI검사중', attempts: 7, elapsed_ms: null, rank: null, is_me: true, best_similarity: 88.1234, best_similarity_rank: 1 }],
     },
   };
-  const fixture = { test_only: true, requests: [], state, today_answer: '달빛', rolloverAfterNextStateRead: null, rolloverAfterNextGuess: null };
+  const fixture = {
+    test_only: true, requests: [], state, today_answer: '달빛',
+    rolloverAfterNextStateRead: null, rolloverAfterNextGuess: null,
+    relatedFailures: 0, historyFailures: 0, holdNextHistory: false, pendingHistory: [],
+  };
   window.__GANMANTLE_UI_TEST__ = fixture;
   const response = (body, status = 200) => new Response(JSON.stringify(body), {
     status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
@@ -78,7 +83,51 @@ function installFixture() {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
     if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return originalFetch(input, init);
     const method = init.method || (input instanceof Request ? input.method : 'GET');
-    fixture.requests.push({ path: url.pathname, method });
+    fixture.requests.push({ path: url.pathname, search: url.search, method });
+    const historyMatch = url.pathname.match(/^\/api\/ranking\/([^/]+)\/guesses$/);
+    if (historyMatch && method === 'GET') {
+      if (state.game?.status !== 'completed' || url.searchParams.get('puzzle_date') !== state.puzzle_date) {
+        return response({ detail: { code: 'game_not_completed', message: 'TEST ONLY 정답을 맞힌 후에 볼 수 있어요.' } }, 403);
+      }
+      if (fixture.historyFailures > 0) {
+        fixture.historyFailures -= 1;
+        return response({ detail: { code: 'ui_test_unavailable', message: 'TEST ONLY 친구 기록을 불러오지 못했어요.' } }, 503);
+      }
+      const userId = decodeURIComponent(historyMatch[1]);
+      const player = [...state.ranking.completed, ...state.ranking.playing].find(item => item.user_id === userId);
+      if (!player) return response({ detail: { code: 'game_not_found', message: 'TEST ONLY 기록이 없어요.' } }, 404);
+      const completed = userId === state.user.id || state.ranking.completed.some(item => item.user_id === userId);
+      const labels = { 'ui-test-one': '친구하나', 'ui-test-two': '친구둘', 'ui-test-three': '친구셋', 'ui-test-four': '친구넷' };
+      const guesses = userId === state.user.id
+        ? [...state.game.guesses].sort((a, b) => a.attempt - b.attempt)
+        : [
+          { word: `${labels[userId]}검사첫단어`, similarity: 11.25, similarity_rank: null, attempt: 1, is_correct: false },
+          { word: `${labels[userId]}검사중간단어`, similarity: 44.5, similarity_rank: 123, attempt: 2, is_correct: false },
+          ...(completed ? [{ word: `${labels[userId]}검사정답`, similarity: 100, similarity_rank: 0, attempt: 3, is_correct: true }] : []),
+        ];
+      const snapshot = response({ puzzle_date: state.puzzle_date, user: { id: userId, nickname: player.nickname }, status: completed ? 'completed' : 'playing', attempts: guesses.length, guesses });
+      if (fixture.holdNextHistory) {
+        fixture.holdNextHistory = false;
+        // 요청 취소 뒤 도착하는 응답도 모형으로 재현해 이전 사람/날짜의 단어가 나타나지 않는지 확인합니다.
+        await new Promise(resolve => fixture.pendingHistory.push(resolve));
+      }
+      return snapshot;
+    }
+    if (url.pathname === '/api/related-words' && method === 'GET') {
+      if (fixture.relatedFailures > 0) {
+        fixture.relatedFailures -= 1;
+        return response({ detail: { code: 'ui_test_unavailable', message: 'TEST ONLY 단어 목록을 불러오지 못했어요.' } }, 503);
+      }
+      if (state.game?.status !== 'completed' || url.searchParams.get('puzzle_date') !== state.puzzle_date) {
+        return response({ detail: { code: 'ui_test_blocked', message: 'TEST ONLY 완료한 날짜만 조회할 수 있어요.' } }, 403);
+      }
+      // 실제 단어·모델 결과와 혼동하지 않도록 모든 항목에 검사용 이름을 붙입니다.
+      return response({ puzzle_date: state.puzzle_date, words: Array.from({ length: 1000 }, (_, index) => ({
+        word: `검사용단어${String(index + 1).padStart(4, '0')}`,
+        rank: index + 1,
+        similarity: 88.1234 - index * 0.05,
+      })) });
+    }
     if (url.pathname === '/api/chat/rooms') return response({ rooms: [{ id: '00000000-0000-0000-0000-000000000001', kind: 'global', name: '전체 대화', owner_id: null }], invitations: [] });
     if (/^\/api\/chat\/rooms\/[^/]+\/messages$/.test(url.pathname) && method === 'GET') return response({ messages: [], next_before: null });
     if (url.pathname === '/api/state' && method === 'GET') {
@@ -193,6 +242,110 @@ async function openChat() {
 async function settleFrame() {
   await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
 }
+
+async function completeFixture() {
+  await evaluate(`(() => {
+    const state = window.__GANMANTLE_UI_TEST__.state;
+    state.game.status = 'completed';
+    state.game.completed_at = state.server_now;
+    state.game.elapsed_ms = 754000;
+    state.game.guesses[0].is_correct = true;
+    state.game.guesses[0].similarity_rank = 0;
+    state.game.guesses[0].similarity = 100;
+    state.player_stats = {
+      first_played_date: '2031-12-20', games_played: 5, games_completed: 2,
+      current_streak: 2, games_incomplete: 3, total_guesses: 114,
+    };
+    window.dispatchEvent(new Event('focus'));
+  })()`);
+  await until('!!document.querySelector(".success-panel")', '완료 화면');
+  await settleFrame();
+}
+
+async function openHistory(userId) {
+  await evaluate(`(() => {
+    const trigger = document.querySelector('.ranking-nickname[data-user-id="${userId}"]');
+    trigger.focus();
+    trigger.click();
+  })()`);
+  await until('document.querySelector(".guess-history")?.open', '추측 기록 대화상자 열기');
+  await settleFrame();
+}
+async function historyRows() {
+  return evaluate('[...document.querySelectorAll(".guess-history-table tbody tr")].map(row => [...row.children].map(cell => cell.textContent))');
+}
+async function closeHistory() {
+  await evaluate('document.querySelector(".guess-history-close").click()');
+  await until('!document.querySelector(".guess-history")?.open', '추측 기록 닫기');
+}
+async function checkHistoryMobile(width) {
+  await check(`모바일 ${width}px 친구 추측 기록: 표·닫기 버튼·화면 경계`, async () => {
+    await openHistory('ui-test-one');
+    await until('document.querySelectorAll(".guess-history-table tbody tr").length === 3', '모바일 친구 기록');
+    const sizes = await evaluate(`(() => {
+      const panel = document.querySelector('.guess-history');
+      const box = el => {
+        const r = el.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+      };
+      return { documentWidth: document.documentElement.scrollWidth, panel: box(panel), close: box(panel.querySelector('.guess-history-close')), table: box(panel.querySelector('table')) };
+    })()`);
+    assert(sizes.documentWidth <= width + 1, '친구 기록이 모바일 문서 너비를 늘렸습니다.');
+    for (const name of ['panel', 'close', 'table']) {
+      const item = sizes[name];
+      assert(item.width > 0 && item.left >= -1 && item.right <= width + 1, `${name}이 모바일 화면 너비를 벗어났습니다.`);
+      assert(item.height > 0 && item.top >= -1 && item.bottom <= requestedViewport.height + 1, `${name}이 모바일 화면 높이를 벗어났습니다.`);
+    }
+    assert.deepEqual((await historyRows()).map(row => row[0]), ['1', '2', '3']);
+    await screenshot(`ui-friend-history-${width}.png`);
+    await closeHistory();
+    return sizes;
+  });
+}
+async function checkCompletionMobile(width) {
+  await check(`모바일 ${width}px 완료 상자·통계·상위 단어 링크 배치`, async () => {
+    await completeFixture();
+    const boxes = await completionLayout();
+    await evaluate('document.activeElement?.blur(); document.querySelector(".success-panel").scrollIntoView({ block: "start" }); window.scrollBy(0, -28);');
+    await settleFrame();
+    await screenshot(`ui-completion-${width}.png`);
+    await evaluate('document.querySelector(".completion-related a").click()');
+    await until('document.querySelectorAll(".related-words-table tbody tr").length === 1000', '모바일 상위 단어 목록');
+    await until('document.querySelector(".related-words-status").textContent.includes("1,000개")', '목록 로딩 종료');
+    assert(await evaluate('document.documentElement.scrollWidth <= innerWidth + 1'));
+    const scroll = await evaluate('(() => { const el = document.querySelector(".related-words-scroll"); return { width: el.clientWidth, contentWidth: el.scrollWidth, height: el.clientHeight, contentHeight: el.scrollHeight }; })()');
+    assert(scroll.contentWidth <= scroll.width + 1 && scroll.contentHeight > scroll.height);
+    await screenshot(`ui-completion-words-${width}.png`);
+    await evaluate('document.querySelector(".related-words-heading button").click()');
+    await until('!document.querySelector(".related-words")', '모바일 목록 닫기');
+    return { ...boxes, list: scroll };
+  });
+}
+async function completionLayout() {
+  const boxes = await evaluate(`(() => {
+    const panel = document.querySelector('.success-panel');
+    const box = el => {
+      const r = el.getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    return {
+      panel: box(panel), documentWidth: document.documentElement.scrollWidth,
+      items: [...panel.querySelectorAll('p, h2, h3, button, dt, dd')].map(el => ({
+        ...box(el), text: el.textContent, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+      })),
+      stats: [...panel.querySelectorAll('dt')].map(el => ({ label: el.textContent, value: el.nextElementSibling?.textContent })),
+    };
+  })()`);
+  assert(boxes.panel.width > 0 && boxes.panel.left >= -1 && boxes.panel.right <= requestedViewport.width + 1);
+  assert(boxes.documentWidth <= requestedViewport.width + 1, '완료 패널이 문서 너비를 늘렸습니다.');
+  for (const item of boxes.items) {
+    assert(item.left >= boxes.panel.left - 1 && item.right <= boxes.panel.right + 1, `완료 패널 밖으로 나간 항목: ${item.text}`);
+    assert(item.scrollWidth <= item.clientWidth + 1, `완료 패널 글자 잘림: ${item.text}`);
+  }
+  assert.equal(boxes.stats.length, 6, '플레이 통계는 서버의 여섯 항목을 표시해야 합니다.');
+  return boxes;
+}
+
 async function viewportMetrics() {
   return evaluate(`(() => {
     const v = visualViewport;
@@ -351,9 +504,22 @@ try {
   await check('검사 자료만 표시: 입력 7개, 공동 1위 두 명·단독 두 명·본인 도전 중', async () => {
     const counts = await evaluate('({ guesses: document.querySelectorAll(".guess-table tbody tr").length, ranking: document.querySelectorAll(".ranking-table tbody tr").length, joint: document.querySelectorAll(".joint-rank").length, me: document.querySelectorAll(".my-ranking-row .me-label").length })');
     assert.deepEqual(counts, { guesses: 7, ranking: 5, joint: 2, me: 1 });
+    assert.equal(await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === "/api/related-words").length'), 0);
+    assert.equal(await evaluate('document.querySelectorAll(".success-panel").length'), 0);
     assert.equal(await evaluate('document.querySelectorAll(".message.notice, .header-note, .game-guide, #guess-help, .ranking-note, .site-footer").length'), 0);
     assert.equal(await evaluate('document.querySelector("#guess").getAttribute("aria-describedby")'), null);
     return counts;
+  });
+  await check('정답 전에는 랭킹 닉네임으로 대화만 선택·친구 단어 요청과 본인 기록 버튼 없음', async () => {
+    assert.equal(await evaluate('document.querySelectorAll(".my-ranking-row .ranking-nickname").length'), 0);
+    assert(await evaluate('[...document.querySelectorAll(".ranking-nickname")].every(el => el.getAttribute("aria-label").includes("대화 선택"))'));
+    await evaluate('document.querySelector(".ranking-nickname[data-user-id=ui-test-one]").click()');
+    await until('document.querySelector(".chat-person-action")?.textContent.includes("검사완료하나")', '정답 전 대화 선택 유지');
+    assert(!await evaluate('document.querySelector(".guess-history")?.open'));
+    assert.equal(await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path.startsWith("/api/ranking/") && item.path.endsWith("/guesses")).length'), 0);
+    await evaluate('document.querySelector(".chat-close").click()');
+    await until('!document.querySelector(".chat-panel")', '정답 전 대화 닫기');
+    await evaluate('document.activeElement?.blur(); window.scrollTo(0, 0)');
   });
   await check('서버 한국 날짜 표시·어제 정답 있음/없음·오늘 정답 숨김', async () => {
     assert.equal(await evaluate('document.querySelector(".puzzle-date").dateTime'), '2031-12-31');
@@ -522,29 +688,134 @@ try {
     }
   });
   summary.desktop_api_requests = await evaluate('window.__GANMANTLE_UI_TEST__.requests');
-  await check('정답 완료 화면에서도 시간 숨김·시도 횟수 유지', async () => {
-    await evaluate(`(() => {
-      const state = window.__GANMANTLE_UI_TEST__.state;
-      state.game.status = 'completed';
-      state.game.completed_at = new Date().toISOString();
-      state.game.elapsed_ms = 754000;
-      state.game.guesses[0].is_correct = true;
-      state.game.guesses[0].similarity_rank = 0;
-      state.game.guesses[0].similarity = 100;
-      window.dispatchEvent(new Event('focus'));
-    })()`);
-    await until('!!document.querySelector(".success-panel")', '완료 화면');
+  await check('정답 완료 화면: 성공 문구·시도 횟수·서버 통계·다음 문제 날짜·시간 숨김', async () => {
+    await completeFixture();
     assert.equal(await evaluate('document.querySelector(".game-summary strong").textContent'), '8');
-    assert(await evaluate('document.querySelector(".success-panel").textContent.includes("정답이에요!") && document.querySelector(".success-panel").textContent.includes("산책")'));
+    const successText = await evaluate('document.querySelector(".completion-summary").textContent');
+    assert(successText.includes('정답 단어를 맞혔습니다.') && successText.includes('8번째 추측') && successText.includes('산책'));
     assert(!await evaluate('document.querySelector(".success-panel").textContent.includes("내일 또 만나요")'));
     assert(!await evaluate('!!document.querySelector(".game-summary .timer") || /\\d+분\\s*\\d+초/.test(document.querySelector(".game-card").textContent)'));
     assert.equal(await evaluate('document.querySelector(".guess-table .correct-row [data-similarity-rank]").dataset.similarityRank'), '0');
     assert.equal(await evaluate('document.querySelector(".guess-table .correct-row .word-rank").textContent'), '정답');
     assert.equal(await evaluate('document.querySelector(".guess-table .correct-row .rank-fill").style.width'), '100%');
+    const boxes = await completionLayout();
+    assert.deepEqual(boxes.stats, [
+      { label: '첫 도전 날짜', value: '2031년 12월 20일' },
+      { label: '도전한 게임 횟수', value: '5회' },
+      { label: '정답 횟수', value: '2회' },
+      { label: '연속 정답 횟수', value: '2회' },
+      { label: '미완료 횟수', value: '3회' },
+      { label: '지금까지 추측한 단어', value: '114개' },
+    ]);
+    assert.equal(await evaluate('document.querySelector(".completion-next time").dateTime'), '2031-12-31T15:00:00.000Z');
+    assert.equal(await evaluate('document.querySelector(".completion-next time").textContent'), '1월 1일 00:00');
+    assert.equal(await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === "/api/related-words").length'), 0, '완료만으로 1,000개 목록을 미리 요청하면 안 됩니다.');
+    await evaluate('document.activeElement?.blur(); window.scrollTo(0, 0)');
+    await settleFrame();
+    await screenshot('ui-completion-desktop.png');
+    return boxes;
+  });
+  await check('정답 후 닉네임 기록 링크·실패 재시도·최초 시도순 단어/실제 응답 점수·중복 없음', async () => {
+    assert(await evaluate('[...document.querySelectorAll(".ranking-nickname")].every(el => el.getAttribute("aria-label").includes("추측 기록 보기"))'));
+    assert.equal(await evaluate('document.querySelectorAll(".my-ranking-row .ranking-nickname").length'), 1);
+    assert.equal(await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path.startsWith("/api/ranking/") && item.path.endsWith("/guesses")).length'), 0, '클릭 전 친구 단어를 미리 요청하면 안 됩니다.');
+    await evaluate('window.__GANMANTLE_UI_TEST__.historyFailures = 1');
+    await openHistory('ui-test-one');
+    await until('document.querySelector(".guess-history-error")?.textContent.includes("TEST ONLY 친구 기록을 불러오지 못했어요")', '친구 기록 오류');
+    assert.equal((await historyRows()).length, 0);
+    await evaluate('document.querySelector(".guess-history-retry").click()');
+    await until('document.querySelectorAll(".guess-history-table tbody tr").length === 3', '친구 기록 재시도');
+    const rows = await historyRows();
+    assert.deepEqual(rows.map(row => row[0]), ['1', '2', '3']);
+    assert.deepEqual(rows.map(row => row[1]), ['친구하나검사첫단어', '친구하나검사중간단어', '친구하나검사정답']);
+    assert.equal(new Set(rows.map(row => row[1])).size, rows.length);
+    assert.deepEqual(rows.map(row => row[2]), ['11.25', '44.50', '100.00']);
+    assert(rows[0][3].includes('1,000위 밖') && rows[1][3].includes('123위') && rows[2][3].includes('정답'));
+    assert(!await evaluate('/\\d+분\\s*\\d+초/.test(document.querySelector(".guess-history").textContent)'), '친구 기록에서 풀이 시간을 새로 공개하면 안 됩니다.');
+    const requests = await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path.startsWith("/api/ranking/") && item.path.endsWith("/guesses"))');
+    assert.equal(requests.length, 2);
+    assert(requests.every(item => item.method === 'GET' && item.search === '?puzzle_date=2031-12-31'));
+    await screenshot('ui-friend-history-desktop.png');
+    await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await until('!document.querySelector(".guess-history")?.open && document.activeElement?.dataset.userId === "ui-test-one"', 'Escape 닫기·닉네임 포커스 복귀');
+    return rows;
+  });
+  await check('본인 닉네임에서도 원래 시도 번호 순서의 기록 조회·자기 자신 대화 버튼 없음', async () => {
+    await openHistory('ui-test-me');
+    await until('document.querySelectorAll(".guess-history-table tbody tr").length === 8', '본인 추측 기록');
+    const rows = await historyRows();
+    const expected = await evaluate('[...window.__GANMANTLE_UI_TEST__.state.game.guesses].sort((a, b) => a.attempt - b.attempt).map(item => [String(item.attempt), item.word, item.similarity.toFixed(2)])');
+    assert.deepEqual(rows.map(row => row.slice(0, 3)), expected);
+    assert.equal(await evaluate('document.querySelectorAll(".guess-history-chat").length'), 0);
+    await closeHistory();
+  });
+  await check('친구 기록 로딩 중 닫기·다른 친구로 전환 후 늦은 응답 차단·대화 연결 유지', async () => {
+    await evaluate('window.__GANMANTLE_UI_TEST__.holdNextHistory = true');
+    await openHistory('ui-test-one');
+    await until('window.__GANMANTLE_UI_TEST__.pendingHistory.length === 1', '친구 기록 지연 응답');
+    assert.equal((await historyRows()).length, 0);
+    assert(await evaluate('document.querySelector(".guess-history-status")?.textContent.includes("불러오")'));
+    await closeHistory();
+    await openHistory('ui-test-two');
+    await until('document.querySelector(".guess-history-table")?.textContent.includes("친구둘검사정답")', '다른 친구 기록');
+    await evaluate('window.__GANMANTLE_UI_TEST__.pendingHistory.splice(0).forEach(resolve => resolve())');
+    await settleFrame();
+    assert(!await evaluate('document.querySelector(".guess-history").textContent.includes("친구하나검사")'));
+    assert(await evaluate('document.querySelector(".guess-history").textContent.includes("친구둘검사정답")'));
+    await evaluate('document.querySelector(".guess-history-chat").click()');
+    await until('!document.querySelector(".guess-history")?.open && document.querySelector(".chat-person-action")?.textContent.includes("검사완료둘")', '친구 기록에서 대화 선택');
+    await evaluate('document.querySelector(".chat-close").click()');
+    await until('!document.querySelector(".chat-panel")', '친구 대화 닫기');
+  });
+  await check('내가 맞힌 뒤에는 도전 중인 친구의 현재 입력까지만 순서대로 조회', async () => {
+    await evaluate(`(() => {
+      const state = window.__GANMANTLE_UI_TEST__.state;
+      const index = state.ranking.completed.findIndex(item => item.user_id === 'ui-test-four');
+      const [player] = state.ranking.completed.splice(index, 1);
+      state.ranking.playing.push({ ...player, rank: null, elapsed_ms: null, attempts: 2, best_similarity: 44.5, best_similarity_rank: 123 });
+      window.dispatchEvent(new Event('focus'));
+    })()`);
+    await until('document.querySelector(".ranking-nickname[data-user-id=ui-test-four]")?.closest("tr").textContent.includes("도전 중")', '도전 중 친구 표시');
+    await openHistory('ui-test-four');
+    await until('document.querySelectorAll(".guess-history-table tbody tr").length === 2', '도전 중 친구 기록');
+    const rows = await historyRows();
+    assert.deepEqual(rows.map(row => row[0]), ['1', '2']);
+    assert(!rows.some(row => row[1].includes('검사정답')));
+    await closeHistory();
+  });
+  await check('완료 상자에서 기록 복사 기능 제거', async () => {
+    assert.equal(await evaluate('document.querySelectorAll(".copy-record, .copy-record-text").length'), 0);
+    assert(!await evaluate('document.querySelector(".success-panel").textContent.includes("기록 복사")'));
+    assert.equal(await evaluate('document.querySelector(".completion-related a").getAttribute("href")'), '#related-words');
+  });
+  await check('상위 1,000개: 링크에서만 조회·오류 재시도·순위/점수·닫기 후 다시 열기', async () => {
+    await evaluate('window.__GANMANTLE_UI_TEST__.relatedFailures = 1; document.querySelector(".completion-related a").click()');
+    await until('document.querySelector(".related-words-status")?.textContent.includes("TEST ONLY 단어 목록을 불러오지 못했어요")', '유사 단어 조회 오류');
+    assert.equal(await evaluate('document.querySelector(".completion-related a").getAttribute("aria-expanded")'), 'true');
+    assert.equal(await evaluate('document.querySelectorAll(".related-words-table tbody tr").length'), 0);
+    await evaluate('[...document.querySelectorAll(".related-words button")].find(el => el.textContent === "다시 불러오기").click()');
+    await until('document.querySelectorAll(".related-words-table tbody tr").length === 1000', '검사용 1,000개 목록');
+    const rows = await evaluate('[...document.querySelectorAll(".related-words-table tbody tr")].map(row => [...row.children].map(el => el.textContent))');
+    assert.deepEqual(rows[0], ['1', '검사용단어0001', '88.12']);
+    assert.deepEqual(rows[999], ['1,000', '검사용단어1000', '38.17']);
+    assert(rows.every((row, index) => Number(row[0].replaceAll(',', '')) === index + 1));
+    const requests = await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === "/api/related-words")');
+    assert.equal(requests.length, 2);
+    assert(requests.every(item => item.search === '?puzzle_date=2031-12-31' && item.method === 'GET'));
+    await evaluate('[...document.querySelectorAll(".related-words-heading button")].find(el => el.textContent === "닫기").click()');
+    await until('!document.querySelector(".related-words")', '유사 단어 목록 닫기');
+    assert.equal(await evaluate('document.querySelector(".completion-related a").getAttribute("aria-expanded")'), 'false');
+    await evaluate('document.querySelector(".completion-related a").click()');
+    await until('document.querySelectorAll(".related-words-table tbody tr").length === 1000', '이미 읽은 목록 다시 열기');
+    assert.equal(await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === "/api/related-words").length'), 2);
   });
   await check('자정 자동 재조회·중복 응답의 새 날짜와 어제 정답 전환·배너 및 오늘 정답 숨김', async () => {
     const before = await evaluate('window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === "/api/state").length');
     assert(!await evaluate('document.body.textContent.includes(window.__GANMANTLE_UI_TEST__.today_answer)'));
+    await evaluate('window.__GANMANTLE_UI_TEST__.holdNextHistory = true');
+    await openHistory('ui-test-one');
+    await until('window.__GANMANTLE_UI_TEST__.pendingHistory.length === 1', '자정 직전 친구 기록 요청');
     await evaluate(`(() => {
       const fixture = window.__GANMANTLE_UI_TEST__;
       fixture.state.server_now = '2031-12-31T14:59:59.800Z';
@@ -559,9 +830,14 @@ try {
     })()`);
     await until('document.querySelector(".puzzle-date")?.textContent === "2032년 1월 1일" && document.querySelector(".yesterday-answer")?.textContent === "어제의 정답: 달빛"', '한국 시간 자정 날짜·정답 전환');
     assert.equal(await evaluate('document.querySelector(".puzzle-date").dateTime'), '2032-01-01');
+    await evaluate('window.__GANMANTLE_UI_TEST__.pendingHistory.splice(0).forEach(resolve => resolve())');
+    await settleFrame();
+    assert(!await evaluate('document.querySelector(".guess-history")?.open || document.body.textContent.includes("친구하나검사")'), '자정 이후 전날 친구 단어가 다시 나타났습니다.');
     assert(await evaluate(`window.__GANMANTLE_UI_TEST__.requests.filter(item => item.path === '/api/state').length >= ${before + 2}`));
     assert.equal(await evaluate('document.querySelectorAll(".message.notice").length'), 0);
     assert(await evaluate('!!document.querySelector(".start-button") && !document.querySelector(".guess-table")'));
+    assert.equal(await evaluate('document.querySelectorAll(".success-panel, .player-stats, .related-words, .copy-record-text").length'), 0, '자정 이후 전날 완료 패널과 유사 단어가 남았습니다.');
+    assert(!await evaluate('document.body.textContent.includes("검사용단어")'));
     assert(!await evaluate('document.body.textContent.includes(window.__GANMANTLE_UI_TEST__.today_answer)'));
     // 자정 직전 중복 제출이 성공한 뒤 새 날짜 상태를 받는 경우도 같은 검사에서 확인합니다.
     await evaluate(`(() => {
@@ -614,9 +890,13 @@ try {
     await until('!document.querySelector(".chat-panel")', '모바일 닫기');
     assert.equal(await evaluate('document.querySelector(".game-card").getBoundingClientRect().width'), mobileWidth);
   });
+  await checkCompletionMobile(390);
+  await checkHistoryMobile(390);
   await loadViewport(320, 844, true);
   await check('모바일 320px 기준 유사도: 세 그룹 동일 너비·제목/순위/점수 겹침과 잘림 없음', () => referenceLayout(true));
   await screenshot('ui-mobile-320.png');
+  await checkCompletionMobile(320);
+  await checkHistoryMobile(320);
   await check('브라우저 JavaScript 오류 없음', async () => assert.deepEqual(summary.browser_errors, []));
   summary.passed = true;
 } catch (error) {

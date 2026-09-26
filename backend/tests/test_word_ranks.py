@@ -39,16 +39,28 @@ def test_actual_top_thousand_excludes_answer_and_outside_is_not_estimated():
         assert result["reference"][f"top{place}"] == pytest.approx(raw, abs=0.0001)
     assert result["reference"]["top1000"] < 0  # 음수도 0점으로 보정하지 않는다.
     assert result["reference"]["vocabulary_size"] == 1003
+    assert len(result["words"]) == 1000
+    assert result["words"][0] == {
+        "word": "검사1", "similarity": result["reference"]["top1"], "rank": 1,
+    }
+    assert result["words"][9]["similarity"] == result["reference"]["top10"]
+    assert result["words"][999]["similarity"] == result["reference"]["top1000"]
+    assert all(row["word"] != "정답" for row in result["words"])
 
 
 def test_exact_score_ties_share_rank_including_thousand_boundary():
     index = index_for_rules()
     index.vectors[2] = index.vectors[1]
     index.vectors[1001] = index.vectors[1000]
-    ranks = index.rankings("정답")["ranks"]
+    result = index.rankings("정답")
+    ranks = result["ranks"]
     assert [ranks[f"검사{i}"] for i in (1, 2, 3)] == [1, 1, 3]
     assert ranks["검사1000"] == ranks["검사1001"] == 1000
     assert ranks.get("검사1002") is None
+    assert [row["rank"] for row in result["words"][:3]] == [1, 1, 3]
+    assert [row["word"] for row in result["words"][:3]] == ["검사1", "검사2", "검사3"]
+    assert len(result["words"]) == 1000
+    assert result["words"][-1]["word"] == "검사1000"
 
 
 def test_display_rounding_does_not_create_a_joint_word_rank():

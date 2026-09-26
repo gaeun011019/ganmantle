@@ -229,6 +229,85 @@ try {
   check(state.duplicate && state.game.attempts === 1, '복원 후 중복 입력이 새 시도로 저장되었습니다.');
   assert.deepEqual(storedState(state), saved);
   passed('복원 DB에서 같은 쿠키 재접속·게임/채팅 조회·중복 요청 처리');
+
+  progress('정답 완료 통계·상위 유사어와 실제 입력 점수 비교');
+  const relatedPath = `/related-words?puzzle_date=${day}`;
+  const locked = await fetch(`${baseUrl}/api${relatedPath}`, { headers: { Cookie: cookie } });
+  check(locked.status === 403, '정답을 맞히기 전에 유사어 목록이 공개됐습니다.');
+  assert.equal(state.player_stats, null);
+  state = await api('/guesses', { puzzle_date: day, word: answer });
+  check(state.game.status === 'completed' && state.game.attempts === 2, '실제 정답 완료가 저장되지 않았습니다.');
+  const stats = { first_played_date: day, games_played: 1, games_completed: 1,
+    current_streak: 1, games_incomplete: 0, total_guesses: 2 };
+  assert.deepEqual(state.player_stats, stats);
+  const related = await api(relatedPath);
+  assert.equal(related.puzzle_date, day);
+  assert.equal(related.words.length, 1000);
+  assert.equal(new Set(related.words.map(item => item.word)).size, 1000);
+  check(related.words.every(item => item.word !== answer), '유사어 목록에 정답이 포함됐습니다.');
+  for (const [index, item] of related.words.entries()) {
+    check(Number.isFinite(item.similarity) && item.similarity >= -100 && item.similarity <= 100,
+      '유사어 목록의 점수가 유효하지 않습니다.');
+    const previous = related.words[index - 1];
+    if (previous) check(previous.similarity >= item.similarity, '유사어 목록이 점수순이 아닙니다.');
+    assert.equal(item.rank, previous?.similarity === item.similarity ? previous.rank : index + 1);
+  }
+  for (const [position, key] of [[0, 'top1'], [9, 'top10'], [999, 'top1000']]) {
+    assert.equal(related.words[position].similarity, state.similarity_reference[key]);
+  }
+  state = await api('/guesses', { puzzle_date: day, word: answer });
+  check(state.duplicate && state.game.attempts === 2, '완료 후 중복 제출로 시도 수가 증가했습니다.');
+  assert.deepEqual(state.player_stats, stats);
+  assert.deepEqual((await api('/state')).player_stats, stats);
+
+  // 같은 검사 DB의 다른 플레이어가 실제 입력한 점수와 목록·순위를 비교합니다.
+  const completedCookie = cookie;
+  cookie = '';
+  await api('/users', { nickname: `비교${randomBytes(4).toString('hex')}` });
+  await api('/start', { puzzle_date: day });
+  for (const position of [0, 9, 999]) {
+    const item = related.words[position];
+    const comparison = await api('/guesses', { puzzle_date: day, word: item.word });
+    const actual = comparison.game.guesses[0];
+    assert.equal(actual.similarity, item.similarity);
+    assert.equal(actual.similarity_rank, item.rank);
+    assert.equal(comparison.player_stats, null);
+  }
+  const comparisonCookie = cookie;
+  const comparisonState = await api('/state');
+  cookie = completedCookie;
+  assert.deepEqual((await api('/state')).player_stats, stats);
+  passed('완료 전 유사어 차단·실제 정답/중복/통계·1,000개 목록과 기준값 및 실제 입력 점수/순위 일치');
+
+  progress('정답 후 친구 추측 기록의 접근 권한·입력 순서·실제 점수 비교');
+  const historyPath = `/ranking/${comparisonState.user.id}/guesses?puzzle_date=${day}`;
+  const ownPath = `/ranking/${state.user.id}/guesses?puzzle_date=${day}`;
+  const visitor = await fetch(`${baseUrl}/api${historyPath}`);
+  check(visitor.status === 401, '미등록 사용자가 친구 기록을 읽었습니다.');
+  const unsolved = await fetch(`${baseUrl}/api${ownPath}`, { headers: { Cookie: comparisonCookie } });
+  check(unsolved.status === 403, '미완료 사용자가 다른 사람의 정답 기록을 읽었습니다.');
+  const snapshot = await databaseSnapshot(database);
+  const history = await api(historyPath);
+  assert.equal(history.status, 'playing');
+  assert.equal(history.user.id, comparisonState.user.id);
+  assert.equal(history.puzzle_date, day);
+  assert.equal(history.attempts, 3);
+  assert.deepEqual(history.guesses, [...comparisonState.game.guesses].sort((a, b) => a.attempt - b.attempt));
+  assert.deepEqual(await databaseSnapshot(database), snapshot);
+  cookie = comparisonCookie;
+  await api('/guesses', { puzzle_date: day, word: related.words[0].word });
+  const friendCompleted = await api('/guesses', { puzzle_date: day, word: answer });
+  cookie = completedCookie;
+  const solvedHistory = await api(historyPath);
+  assert.equal(solvedHistory.status, 'completed');
+  assert.equal(solvedHistory.attempts, 4);
+  assert.deepEqual(solvedHistory.guesses, [...friendCompleted.game.guesses].sort((a, b) => a.attempt - b.attempt));
+  assert.equal(solvedHistory.guesses.at(-1).is_correct, true);
+  assert.equal(solvedHistory.guesses.at(-1).similarity_rank, 0);
+  const reconnected = await api(historyPath);
+  assert.deepEqual(reconnected, solvedHistory);
+  assert.deepEqual((await api('/state')).player_stats, stats);
+  passed('친구 기록: 미등록401·미완료403·완료 후 조회·최초 입력 순서·중복 보존·실제 점수/순위 일치·읽기 전용·재접속');
   summary.passed = true;
 } catch (error) {
   summary.error = error instanceof CheckFailure ? error.message : `${stage}: ${error.name || '오류'}`;

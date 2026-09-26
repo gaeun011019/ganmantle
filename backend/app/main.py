@@ -6,6 +6,7 @@ import os
 from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -138,6 +139,25 @@ def set_nickname(payload: NicknameInput, request: Request, response: Response):
     except users.UserError as error:
         fail(error)
 
+
+@app.get("/api/related-words")
+def related_words(request: Request, puzzle_date: date):
+    try:
+        with db.connect() as conn:
+            user = users.require_user(conn, request.cookies.get(users.COOKIE_NAME))
+            return game.related_words(conn, user, puzzle_date, current_engine(request))
+    except users.UserError as error:
+        fail(error)
+
+
+@app.get("/api/ranking/{user_id}/guesses")
+def friend_history(user_id: UUID, request: Request, puzzle_date: date):
+    try:
+        with db.connect() as conn:
+            user = users.require_user(conn, request.cookies.get(users.COOKIE_NAME))
+            return game.friend_history(conn, user, user_id, puzzle_date, current_engine(request))
+    except users.UserError as error:
+        fail(error)
 
 def mutate(request: Request, operation, expected: date):
     error = None

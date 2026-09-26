@@ -88,7 +88,13 @@ class WordRankIndex:
                 break
             ranks[self.words[index]] = rank
             previous = score
-        return {"ranks": ranks, "sorted_scores": sorted_scores, "reference": {
+        # 완료한 본인에게만 별도 API로 공개합니다. 일반 상태 응답에는 넣지 않습니다.
+        words = [
+            {"word": self.words[index], "similarity": float(scores[index]),
+             "rank": ranks[self.words[index]]}
+            for index in order[:1000]
+        ]
+        return {"ranks": ranks, "words": words, "sorted_scores": sorted_scores, "reference": {
             "vocabulary_size": len(self.words),
             "top1": float(scores[order[0]]), "top10": float(scores[order[9]]),
             "top1000": float(scores[order[999]]),

@@ -119,7 +119,7 @@ def ranking(conn, day: date, user_id=None, indexed=None):
     for row in rows:
         complete = row["status"] == "completed"
         best_rank = rank_for_score(indexed, row["best_word"], row["best_similarity"])
-        # 추측 단어·정답·세션·상대방의 시작 시각은 공개하지 않습니다.
+        # 일반 순위 요약에는 추측 단어·정답·세션·상대방의 시작 시각을 넣지 않습니다.
         result[row["status"]].append({
             "user_id": str(row["user_id"]), "nickname": row["nickname"],
             "attempts": row["attempts"], "rank": row["rank"],
@@ -130,6 +130,96 @@ def ranking(conn, day: date, user_id=None, indexed=None):
         })
     return result
 
+
+def player_stats(conn, user_id, day: date):
+    """현재 익명 세션의 저장 기록만 집계합니다. 별도 통계 테이블은 만들지 않습니다."""
+    result = conn.execute("""
+        SELECT MIN(puzzle_date) AS first_played_date,
+               COUNT(*) AS games_played,
+               COUNT(*) FILTER (WHERE status = 'completed') AS games_completed,
+               COUNT(*) FILTER (WHERE status = 'incomplete') AS games_incomplete,
+               COALESCE(SUM(attempts), 0) AS total_guesses
+        FROM games WHERE user_id = %s AND puzzle_date <= %s
+    """, (user_id, day)).fetchone()
+    first_day = result["first_played_date"]
+    result["first_played_date"] = first_day.isoformat() if first_day else None
+
+    # 어제 도전하지 않았어도 연속 기록은 끊깁니다. 한국 달력 날짜로 비교합니다.
+    completed = conn.execute("""
+        SELECT puzzle_date FROM games
+        WHERE user_id = %s AND puzzle_date <= %s AND status = 'completed'
+        ORDER BY puzzle_date DESC
+    """, (user_id, day)).fetchall()
+    result["current_streak"] = 0
+    expected = day
+    for row in completed:
+        if row["puzzle_date"] != expected:
+            break
+        result["current_streak"] += 1
+        expected -= timedelta(days=1)
+    return result
+
+
+def related_words(conn, user, expected: date, engine):
+    """오늘 정답을 맞힌 세션에만 정답을 제외한 실제 상위 1,000개를 공개합니다."""
+    ensure_date(expected, utcnow())
+    saved = conn.execute("""
+        SELECT g.status, p.answer FROM games g
+        JOIN puzzles p ON p.puzzle_date = g.puzzle_date
+        WHERE g.user_id = %s AND g.puzzle_date = %s
+    """, (user["id"], expected)).fetchone()
+    # 모델 조회보다 먼저 완료 여부를 확인하여 다른 사람의 완료 기록을 사용할 수 없게 합니다.
+    if not saved or saved["status"] != "completed":
+        raise GameError("game_not_completed", "오늘 정답을 맞히면 비슷한 단어를 볼 수 있어요.", 403)
+    require_model(conn, expected, engine)
+    ensure_date(expected, utcnow())
+    indexed = word_rankings(engine, saved["answer"], expected)
+    return {"puzzle_date": expected.isoformat(), "words": indexed["words"]}
+
+
+def friend_history(conn, user, target_user_id, expected: date, engine):
+    """오늘 정답을 맞힌 사람에게만 같은 날짜 참가자의 최초 입력 순서를 공개합니다."""
+    ensure_date(expected, utcnow())
+    viewer = conn.execute("""
+        SELECT g.status, p.answer FROM games g
+        JOIN puzzles p ON p.puzzle_date = g.puzzle_date
+        WHERE g.user_id = %s AND g.puzzle_date = %s
+    """, (user["id"], expected)).fetchone()
+    ensure_date(expected, utcnow())
+    # 상대방 존재 여부나 모델보다 본인의 완료 여부부터 확인합니다.
+    if not viewer or viewer["status"] != "completed":
+        raise GameError("game_not_completed", "오늘 정답을 맞히면 친구의 추측 기록을 볼 수 있어요.", 403)
+
+    target = conn.execute("""
+        SELECT g.id, g.user_id, u.nickname, g.status, g.attempts
+        FROM games g JOIN users u ON u.id = g.user_id
+        WHERE g.user_id = %s AND g.puzzle_date = %s
+          AND g.status IN ('playing', 'completed')
+        FOR SHARE OF g
+    """, (target_user_id, expected)).fetchone()
+    ensure_date(expected, utcnow())
+    if not target:
+        raise GameError("game_not_found", "오늘의 추측 기록을 찾을 수 없어요.", 404)
+
+    # 문제에 고정된 모델과 현재 모델이 다르면 기존 점수에 새 순위를 붙이지 않습니다.
+    try:
+        require_model(conn, expected, engine)
+    finally:
+        ensure_date(expected, utcnow())
+    indexed = word_rankings(engine, viewer["answer"], expected)
+    # 게임 행 공유 잠금으로 친구의 동시 제출 중에도 횟수와 목록을 같은 상태로 읽습니다.
+    guesses = conn.execute("""
+        SELECT word, similarity, attempt, is_correct FROM guesses
+        WHERE game_id = %s ORDER BY attempt
+    """, (target["id"],)).fetchall()
+    for guess in guesses:
+        guess["similarity_rank"] = rank_for_score(indexed, guess["word"], guess["similarity"])
+    ensure_date(expected, utcnow())
+    return {
+        "puzzle_date": expected.isoformat(),
+        "user": {"id": str(target["user_id"]), "nickname": target["nickname"]},
+        "status": target["status"], "attempts": target["attempts"], "guesses": guesses,
+    }
 
 def state(conn, user, engine, client_date: date | None = None):
     now = utcnow()
@@ -155,6 +245,7 @@ def state(conn, user, engine, client_date: date | None = None):
     # 요청 날짜가 아니라 서버의 오늘 기준입니다. 어제 문제가 없으면 다른 날짜로 대체하지 않습니다.
     yesterday = conn.execute("SELECT answer FROM puzzles WHERE puzzle_date = %s", (day - timedelta(days=1),)).fetchone()
     record = None
+    stats = None
     if user:
         close_expired(conn, now, user["id"])
         saved = conn.execute("SELECT * FROM games WHERE user_id = %s AND puzzle_date = %s", (user["id"], day)).fetchone()
@@ -168,12 +259,17 @@ def state(conn, user, engine, client_date: date | None = None):
                 "completed_at": saved["completed_at"].isoformat() if saved["completed_at"] else None,
                 "elapsed_ms": elapsed_ms(saved["started_at"], end), "attempts": saved["attempts"], "guesses": guesses,
             }
+            if saved["status"] == "completed":
+                stats = player_stats(conn, user["id"], day)
+    current_ranking = ranking(conn, day, user["id"] if user else None, indexed)
+    if puzzle_date(utcnow()) != day:
+        return state(conn, user, engine, client_date)
     return {
         "server_now": now.isoformat(), "puzzle_date": day.isoformat(), "next_reset_at": next_reset(now).isoformat(),
         "yesterday_answer": yesterday["answer"] if yesterday else None,
         "user": {"id": str(user["id"]), "nickname": user["nickname"]} if user else None,
-        "game": record, "model": model, "similarity_reference": reference,
-        "ranking": ranking(conn, day, user["id"] if user else None, indexed),
+        "game": record, "player_stats": stats, "model": model, "similarity_reference": reference,
+        "ranking": current_ranking,
         "date_changed": client_date is not None and client_date != day,
     }
 
