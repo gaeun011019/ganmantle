@@ -1,0 +1,8 @@
+# Windows와 Mac에서 SQL 체크섬과 Linux 스크립트 줄바꿈을 동일하게 유지합니다.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.sql text eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=lf

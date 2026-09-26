@@ -1,0 +1,14 @@
+{
+  "model_id": "facebook/fasttext-ko-vectors",
+  "upstream_model_id": "fastText cc.ko.300",
+  "display_name": "한국어 fastText cc.ko.300 · 원본 bin",
+  "revision": "3dcf803428851b59842f09c42ad3d0930913b83d",
+  "license": "CC-BY-SA-3.0",
+  "license_url": "https://fasttext.cc/docs/en/crawl-vectors.html",
+  "directory": "models/fasttext-ko",
+  "algorithm": "fasttext-bin-subword-mean-l2-cosine100-v1",
+  "dimension": 300,
+  "files": [
+    {"path": "model.bin", "size": 7243669409, "sha256": "a021ebbd5521ca4b3b33425fc25dacd60e4a795041d6f785997800d32a58acd7"}
+  ]
+}

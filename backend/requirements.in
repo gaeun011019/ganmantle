@@ -1,0 +1,10 @@
+# 런타임: FastAPI 서버, PostgreSQL, CPU 임베딩. requirements.lock으로 설치합니다.
+fastapi==0.115.12
+uvicorn==0.34.3
+psycopg[binary]==3.2.9
+numpy==2.2.6
+tzdata==2025.2
+psutil==7.0.0
+# 규칙/실제 모델 통합 검사
+pytest==8.4.0
+httpx==0.28.1

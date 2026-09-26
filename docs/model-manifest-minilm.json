@@ -1,0 +1,14 @@
+{
+  "model_id": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+  "upstream_model_id": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "display_name": "paraphrase-multilingual-MiniLM-L12-v2 · ONNX int8",
+  "revision": "2c4055b12046f11709e9df2c122e59ffbdc2f900",
+  "license": "Apache-2.0 (upstream sentence-transformers)",
+  "license_url": "https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "directory": "models/paraphrase-multilingual-MiniLM-L12-v2",
+  "algorithm": "minilm-mean-pool-l2-cosine100-v1",
+  "files": [
+    {"path": "onnx/model_quantized.onnx", "size": 118308126, "sha256": "66fc00f5f29afcaff34092e1bdd20008ca3918265a82fb9695a551e510cc4ebc"},
+    {"path": "tokenizer.json", "size": 17082913, "sha256": "b60b6b43406a48bf3638526314f3d232d97058bc93472ff2de930d43686fa441"}
+  ]
+}

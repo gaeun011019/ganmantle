@@ -1,0 +1,56 @@
+# 앱 하나 + PostgreSQL 하나. 기존 프로젝트와 이름/볼륨/DB를 분리합니다.
+name: ganmantle-v1
+services:
+  db:
+    image: postgres:17.5-bookworm@sha256:fbcea1bd13b6a882cd6caa6b58db3ae5c102efe50ec625b3e2a5cbc50db5bfe4
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ganmantle}
+      POSTGRES_USER: ${POSTGRES_USER:-ganmantle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?먼저 scripts/setup_env.py로 .env를 준비하세요}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+  app:
+    # 업데이트 전 이전 이미지에 태그를 붙이면 코드만 되돌릴 수 있습니다.
+    image: ${APP_IMAGE:-ganmantle-v1-app:local}
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ganmantle}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-ganmantle}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # HTTPS 운영 시 브라우저에서 사용하는 정확한 origin을 지정합니다.
+      APP_ORIGIN: ${APP_ORIGIN:-}
+      MODEL_DIR: /models/fasttext-ko
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      # 대용량 .bin은 Windows 공유 폴더보다 빠른 Linux 저장 공간에서 읽습니다.
+      - model_data:/models:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 20s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  postgres_data:
+  model_data:

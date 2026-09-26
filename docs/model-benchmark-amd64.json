@@ -1,0 +1,252 @@
+{
+  "measured_at_utc": "2026-09-19T07:07:19.084617+00:00",
+  "system": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+  "machine": "x86_64",
+  "python": "3.12.11",
+  "model": "multilingual-e5-small · ONNX int8",
+  "fingerprint": "b97c07183494b6b2af20987dc5fc8a3f5a38df8fd2ea33e5f34a3bc3557e59ff",
+  "versions": {
+    "numpy": "2.2.6",
+    "onnxruntime": "1.22.1",
+    "tokenizers": "0.21.2",
+    "psutil": "7.0.0"
+  },
+  "load_seconds_including_import_and_warmup": 60.984,
+  "engine_load_seconds": 59.003,
+  "rss_before_mb": 19.4,
+  "rss_after_load_mb": 484.98,
+  "rss_after_benchmark_mb": 485.05,
+  "uncached_pair_median_ms": 41.731,
+  "uncached_pair_p95_ms": 83.099,
+  "cached_pair_mean_ms": 0.02503,
+  "quality_comparisons": [
+    {
+      "related": "개",
+      "unrelated": "책상",
+      "answer": "강아지",
+      "related_higher": true
+    },
+    {
+      "related": "걷다",
+      "unrelated": "냉장고",
+      "answer": "산책",
+      "related_higher": true
+    },
+    {
+      "related": "기쁘다",
+      "unrelated": "볼트",
+      "answer": "행복",
+      "related_higher": true
+    },
+    {
+      "related": "예쁘다",
+      "unrelated": "숟가락",
+      "answer": "아름답다",
+      "related_higher": true
+    }
+  ],
+  "examples": [
+    {
+      "answer": "강아지",
+      "word": "개",
+      "category": "관련 명사",
+      "cosine_times_100": 83.168938,
+      "uncached_pair_ms": 88.313,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁개",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "강아지",
+      "word": "책상",
+      "category": "무관 명사",
+      "cosine_times_100": 78.918167,
+      "uncached_pair_ms": 56.665,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁책",
+        "상",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "산책",
+      "word": "걷다",
+      "category": "관련 동사",
+      "cosine_times_100": 84.421181,
+      "uncached_pair_ms": 71.343,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁",
+        "걷",
+        "다",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "산책",
+      "word": "냉장고",
+      "category": "무관 명사",
+      "cosine_times_100": 83.090782,
+      "uncached_pair_ms": 89.784,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁냉",
+        "장",
+        "고",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "행복",
+      "word": "기쁘다",
+      "category": "관련 감정",
+      "cosine_times_100": 87.327606,
+      "uncached_pair_ms": 55.469,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁기",
+        "쁘",
+        "다",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "행복",
+      "word": "볼트",
+      "category": "무관 명사",
+      "cosine_times_100": 81.722679,
+      "uncached_pair_ms": 69.727,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁볼",
+        "트",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "아름답다",
+      "word": "예쁘다",
+      "category": "관련 형용사",
+      "cosine_times_100": 94.454185,
+      "uncached_pair_ms": 42.59,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁예쁘",
+        "다",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "아름답다",
+      "word": "숟가락",
+      "category": "무관 명사",
+      "cosine_times_100": 82.199455,
+      "uncached_pair_ms": 54.403,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁",
+        "숟",
+        "가",
+        "락",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "산책",
+      "word": "산첵",
+      "category": "오탈자",
+      "cosine_times_100": 82.210503,
+      "uncached_pair_ms": 46.061,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁산",
+        "첵",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "산책",
+      "word": "초록구름산책냥",
+      "category": "직접 만든 미등록 조합",
+      "cosine_times_100": 83.806541,
+      "uncached_pair_ms": 44.542,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁초",
+        "록",
+        "구",
+        "름",
+        "산",
+        "책",
+        "냥",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    },
+    {
+      "answer": "산책",
+      "word": "산책",
+      "category": "동일 입력",
+      "cosine_times_100": 100.0,
+      "uncached_pair_ms": 17.134,
+      "tokens": [
+        "<s>",
+        "▁que",
+        "ry",
+        ":",
+        "▁산",
+        "책",
+        "</s>"
+      ],
+      "unknown_token_count": 0
+    }
+  ],
+  "caveats": [
+    "RSS는 한 시점의 전체 Python 프로세스 상주 메모리이며 최대치가 아니다.",
+    "소수 한국어 예제로 단어게임 전반의 품질을 보증하지 않는다.",
+    "실제 Mac 검사 여부 및 QEMU 사용 여부는 실행 담당자가 별도로 기록한다.",
+    "어휘에 없는 전체 문자열도 서브워드로 추론한다. 새 조어의 사람이 기대하는 의미는 보장하지 않는다."
+  ]
+}

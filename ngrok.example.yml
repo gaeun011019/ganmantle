@@ -1,0 +1,10 @@
+# ngrok.local.yml로 복사하고 아래 아이디와 비밀번호를 직접 바꿉니다.
+# 실제 파일은 Git과 Docker 빌드에서 제외합니다. ngrok 토큰은 여기에 넣지 않습니다.
+on_http_request:
+  - actions:
+      - type: basic-auth
+        config:
+          realm: ganmantle-friends
+          credentials:
+            - "CHANGE_ME:REPLACE_WITH_A_PRIVATE_PASSWORD"
+          enforce: true

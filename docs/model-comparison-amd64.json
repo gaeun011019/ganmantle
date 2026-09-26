@@ -1,0 +1,437 @@
+{
+  "measured_at_utc": "2026-09-19T11:07:51.863513+00:00",
+  "machine": "x86_64",
+  "system": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+  "models": [
+    {
+      "model": "Xenova/multilingual-e5-small · ONNX int8",
+      "fingerprint": "b97c07183494b6b2af20987dc5fc8a3f5a38df8fd2ea33e5f34a3bc3557e59ff",
+      "manifest": "docs/model-manifest-e5.json",
+      "model_id": "Xenova/multilingual-e5-small",
+      "revision": "47e7f554d04b0779fbadcc680936cb21826ba3ec",
+      "algorithm": "e5-query-mean-pool-l2-cosine100-v1",
+      "load_seconds": 7.243,
+      "rss_after_load_mib": 481.18,
+      "rss_after_comparison_mib": 482.11,
+      "uncached_pair_median_ms": 33.451,
+      "uncached_pair_p95_ms": 71.868,
+      "related_higher_count": 17,
+      "comparison_count": 20,
+      "median_related_gap": 5.8924,
+      "triples": [
+        {
+          "anchor": "강아지",
+          "related": "개",
+          "unrelated": "책상",
+          "related_score": 83.1689,
+          "unrelated_score": 78.9182,
+          "gap": 4.2508,
+          "related_higher": true
+        },
+        {
+          "anchor": "산책",
+          "related": "걷다",
+          "unrelated": "냉장고",
+          "related_score": 84.4212,
+          "unrelated_score": 83.0908,
+          "gap": 1.3304,
+          "related_higher": true
+        },
+        {
+          "anchor": "행복",
+          "related": "기쁘다",
+          "unrelated": "볼트",
+          "related_score": 87.3276,
+          "unrelated_score": 81.7227,
+          "gap": 5.6049,
+          "related_higher": true
+        },
+        {
+          "anchor": "아름답다",
+          "related": "예쁘다",
+          "unrelated": "숟가락",
+          "related_score": 94.4542,
+          "unrelated_score": 82.1995,
+          "gap": 12.2547,
+          "related_higher": true
+        },
+        {
+          "anchor": "고양이",
+          "related": "강아지",
+          "unrelated": "기차",
+          "related_score": 84.565,
+          "unrelated_score": 83.6504,
+          "gap": 0.9146,
+          "related_higher": true
+        },
+        {
+          "anchor": "사과",
+          "related": "배",
+          "unrelated": "모니터",
+          "related_score": 80.9361,
+          "unrelated_score": 81.53,
+          "gap": -0.5939,
+          "related_higher": false
+        },
+        {
+          "anchor": "바다",
+          "related": "파도",
+          "unrelated": "연필",
+          "related_score": 85.8694,
+          "unrelated_score": 80.9896,
+          "gap": 4.8798,
+          "related_higher": true
+        },
+        {
+          "anchor": "학교",
+          "related": "학생",
+          "unrelated": "냉장고",
+          "related_score": 92.4191,
+          "unrelated_score": 84.6985,
+          "gap": 7.7206,
+          "related_higher": true
+        },
+        {
+          "anchor": "책",
+          "related": "독서",
+          "unrelated": "비행기",
+          "related_score": 90.9013,
+          "unrelated_score": 84.2112,
+          "gap": 6.6901,
+          "related_higher": true
+        },
+        {
+          "anchor": "음악",
+          "related": "노래",
+          "unrelated": "신발",
+          "related_score": 89.4148,
+          "unrelated_score": 82.7023,
+          "gap": 6.7125,
+          "related_higher": true
+        },
+        {
+          "anchor": "자동차",
+          "related": "버스",
+          "unrelated": "눈물",
+          "related_score": 86.7628,
+          "unrelated_score": 81.5965,
+          "gap": 5.1663,
+          "related_higher": true
+        },
+        {
+          "anchor": "비",
+          "related": "우산",
+          "unrelated": "컴퓨터",
+          "related_score": 80.7295,
+          "unrelated_score": 84.2043,
+          "gap": -3.4747,
+          "related_higher": false
+        },
+        {
+          "anchor": "병원",
+          "related": "의사",
+          "unrelated": "구름",
+          "related_score": 92.9623,
+          "unrelated_score": 83.2245,
+          "gap": 9.7378,
+          "related_higher": true
+        },
+        {
+          "anchor": "커피",
+          "related": "차",
+          "unrelated": "축구",
+          "related_score": 83.4805,
+          "unrelated_score": 84.9204,
+          "gap": -1.4399,
+          "related_higher": false
+        },
+        {
+          "anchor": "사랑",
+          "related": "좋아하다",
+          "unrelated": "망치",
+          "related_score": 87.817,
+          "unrelated_score": 81.6158,
+          "gap": 6.2012,
+          "related_higher": true
+        },
+        {
+          "anchor": "빠르다",
+          "related": "신속하다",
+          "unrelated": "소금",
+          "related_score": 87.2597,
+          "unrelated_score": 78.8229,
+          "gap": 8.4368,
+          "related_higher": true
+        },
+        {
+          "anchor": "슬프다",
+          "related": "울다",
+          "unrelated": "자동차",
+          "related_score": 87.5525,
+          "unrelated_score": 81.3726,
+          "gap": 6.1799,
+          "related_higher": true
+        },
+        {
+          "anchor": "먹다",
+          "related": "마시다",
+          "unrelated": "창문",
+          "related_score": 88.6446,
+          "unrelated_score": 79.9245,
+          "gap": 8.72,
+          "related_higher": true
+        },
+        {
+          "anchor": "춥다",
+          "related": "차갑다",
+          "unrelated": "연필",
+          "related_score": 85.7351,
+          "unrelated_score": 80.35,
+          "gap": 5.3851,
+          "related_higher": true
+        },
+        {
+          "anchor": "잠",
+          "related": "꿈",
+          "unrelated": "키보드",
+          "related_score": 87.8385,
+          "unrelated_score": 81.3359,
+          "gap": 6.5026,
+          "related_higher": true
+        }
+      ],
+      "all_answer_pairs": {
+        "answers": 90,
+        "pairs": 4005,
+        "percentiles": {
+          "0": 76.5861,
+          "5": 80.0179,
+          "25": 81.6531,
+          "50": 82.9726,
+          "75": 84.4822,
+          "95": 87.0568,
+          "100": 93.1515
+        },
+        "percent_in_80s": 94.31
+      },
+      "independent_cosine_check": true
+    },
+    {
+      "model": "paraphrase-multilingual-MiniLM-L12-v2 · ONNX int8",
+      "fingerprint": "370543bf8dd573e2f26a3d24c2123be6b085bba62af6546c1f0196d2c300fba5",
+      "manifest": "model-manifest.json",
+      "model_id": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+      "revision": "2c4055b12046f11709e9df2c122e59ffbdc2f900",
+      "algorithm": "minilm-mean-pool-l2-cosine100-v1",
+      "load_seconds": 10.948,
+      "rss_after_load_mib": 496.54,
+      "rss_after_comparison_mib": 496.54,
+      "uncached_pair_median_ms": 34.339,
+      "uncached_pair_p95_ms": 50.13,
+      "related_higher_count": 18,
+      "comparison_count": 20,
+      "median_related_gap": 50.2953,
+      "triples": [
+        {
+          "anchor": "강아지",
+          "related": "개",
+          "unrelated": "책상",
+          "related_score": 90.1669,
+          "unrelated_score": 29.832,
+          "gap": 60.3349,
+          "related_higher": true
+        },
+        {
+          "anchor": "산책",
+          "related": "걷다",
+          "unrelated": "냉장고",
+          "related_score": 85.1828,
+          "unrelated_score": 25.4328,
+          "gap": 59.75,
+          "related_higher": true
+        },
+        {
+          "anchor": "행복",
+          "related": "기쁘다",
+          "unrelated": "볼트",
+          "related_score": 78.4513,
+          "unrelated_score": 54.9887,
+          "gap": 23.4626,
+          "related_higher": true
+        },
+        {
+          "anchor": "아름답다",
+          "related": "예쁘다",
+          "unrelated": "숟가락",
+          "related_score": 90.7096,
+          "unrelated_score": 38.6819,
+          "gap": 52.0277,
+          "related_higher": true
+        },
+        {
+          "anchor": "고양이",
+          "related": "강아지",
+          "unrelated": "기차",
+          "related_score": 34.6028,
+          "unrelated_score": 18.9901,
+          "gap": 15.6128,
+          "related_higher": true
+        },
+        {
+          "anchor": "사과",
+          "related": "배",
+          "unrelated": "모니터",
+          "related_score": 33.6279,
+          "unrelated_score": 34.812,
+          "gap": -1.184,
+          "related_higher": false
+        },
+        {
+          "anchor": "바다",
+          "related": "파도",
+          "unrelated": "연필",
+          "related_score": 75.3672,
+          "unrelated_score": 21.3889,
+          "gap": 53.9783,
+          "related_higher": true
+        },
+        {
+          "anchor": "학교",
+          "related": "학생",
+          "unrelated": "냉장고",
+          "related_score": 86.4902,
+          "unrelated_score": 35.7934,
+          "gap": 50.6969,
+          "related_higher": true
+        },
+        {
+          "anchor": "책",
+          "related": "독서",
+          "unrelated": "비행기",
+          "related_score": 85.9831,
+          "unrelated_score": 27.984,
+          "gap": 57.9991,
+          "related_higher": true
+        },
+        {
+          "anchor": "음악",
+          "related": "노래",
+          "unrelated": "신발",
+          "related_score": 92.8132,
+          "unrelated_score": 34.9781,
+          "gap": 57.8351,
+          "related_higher": true
+        },
+        {
+          "anchor": "자동차",
+          "related": "버스",
+          "unrelated": "눈물",
+          "related_score": 57.6932,
+          "unrelated_score": 31.9407,
+          "gap": 25.7525,
+          "related_higher": true
+        },
+        {
+          "anchor": "비",
+          "related": "우산",
+          "unrelated": "컴퓨터",
+          "related_score": 42.2236,
+          "unrelated_score": 45.6224,
+          "gap": -3.3988,
+          "related_higher": false
+        },
+        {
+          "anchor": "병원",
+          "related": "의사",
+          "unrelated": "구름",
+          "related_score": 80.5934,
+          "unrelated_score": 30.6996,
+          "gap": 49.8938,
+          "related_higher": true
+        },
+        {
+          "anchor": "커피",
+          "related": "차",
+          "unrelated": "축구",
+          "related_score": 54.3588,
+          "unrelated_score": 25.0181,
+          "gap": 29.3407,
+          "related_higher": true
+        },
+        {
+          "anchor": "사랑",
+          "related": "좋아하다",
+          "unrelated": "망치",
+          "related_score": 73.6106,
+          "unrelated_score": 73.3139,
+          "gap": 0.2967,
+          "related_higher": true
+        },
+        {
+          "anchor": "빠르다",
+          "related": "신속하다",
+          "unrelated": "소금",
+          "related_score": 96.2915,
+          "unrelated_score": 28.8015,
+          "gap": 67.49,
+          "related_higher": true
+        },
+        {
+          "anchor": "슬프다",
+          "related": "울다",
+          "unrelated": "자동차",
+          "related_score": 87.0421,
+          "unrelated_score": 42.9004,
+          "gap": 44.1417,
+          "related_higher": true
+        },
+        {
+          "anchor": "먹다",
+          "related": "마시다",
+          "unrelated": "창문",
+          "related_score": 90.595,
+          "unrelated_score": 37.6331,
+          "gap": 52.9619,
+          "related_higher": true
+        },
+        {
+          "anchor": "춥다",
+          "related": "차갑다",
+          "unrelated": "연필",
+          "related_score": 96.8565,
+          "unrelated_score": 18.3219,
+          "gap": 78.5346,
+          "related_higher": true
+        },
+        {
+          "anchor": "잠",
+          "related": "꿈",
+          "unrelated": "키보드",
+          "related_score": 55.583,
+          "unrelated_score": 30.5584,
+          "gap": 25.0246,
+          "related_higher": true
+        }
+      ],
+      "all_answer_pairs": {
+        "answers": 90,
+        "pairs": 4005,
+        "percentiles": {
+          "0": -3.5395,
+          "5": 20.0134,
+          "25": 33.8752,
+          "50": 44.4193,
+          "75": 60.6825,
+          "95": 81.2628,
+          "100": 97.2983
+        },
+        "percent_in_80s": 5.12
+      },
+      "independent_cosine_check": true
+    }
+  ],
+  "limitations": [
+    "20개 수동 비교와 정답 90개 분포만으로 전체 한국어 품질을 보장하지 않습니다.",
+    "실제 Mac/arm64 성능은 별도 확인해야 합니다."
+  ]
+}

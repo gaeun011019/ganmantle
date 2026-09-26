@@ -1,0 +1,28 @@
+# 비밀 설정 (항목 예시는 포함)
+.env
+.env.*
+!.env.example
+# 친구 공유용 인증 정보는 로컬에만 둡니다.
+ngrok.local.yml
+# 모델·DB·백업은 코드와 별도 보관합니다. SQL 변경 이력은 제외하지 않습니다.
+models/
+backups/
+data/
+*.dump
+*.backup
+*.onnx
+*.bin
+*.vec
+# 설치/실행 산출물
+.venv/
+node_modules/
+dist/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.tsbuildinfo
+*.log
+.cache/
+.DS_Store
+Thumbs.db
+test-results/

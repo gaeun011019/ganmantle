@@ -1,0 +1,42 @@
+# ganmantle-v1 폴더를 저장소 루트로 올렸을 때 동작합니다. 배포·이미지 업로드는 하지 않습니다.
+name: 간맨틀 자동 검사
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: ganmantle-ci
+    steps:
+      - name: 소스 가져오기
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: 검사 전용 설정 생성
+        run: |
+          python3 scripts/setup_env.py
+          docker compose config --quiet
+      - name: 잠금 파일로 설치·타입 검사·화면 빌드
+        run: docker compose build app
+      - name: 빈 PostgreSQL 준비
+        run: docker compose up -d --wait db
+      - name: 게임·랭킹·채팅·모델 로더 자동 검사
+        run: >-
+          docker compose run --rm --no-deps app sh -c
+          'TEST_DATABASE_URL="$DATABASE_URL" pytest -q -p no:cacheprovider backend/tests'
+      - name: 비교 사전 파일 확인
+        run: docker compose run --rm --no-deps app python scripts/prepare_dictionary.py --check
+      - name: 검사 컨테이너와 임시 볼륨 정리
+        if: always()
+        run: docker compose down --volumes --remove-orphans

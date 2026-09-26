@@ -1,0 +1,33 @@
+{
+  "name": "hunspell-dict-ko 표제어",
+  "version": "0.7.94",
+  "revision": "07c339220d92ce06ccbae62a345c7314a7e724ce",
+  "license": "GPL-3.0-or-later",
+  "source": {
+    "url": "https://raw.githubusercontent.com/spellcheck-ko/hunspell-dict-ko/07c339220d92ce06ccbae62a345c7314a7e724ce/dict-ko-data.yaml",
+    "path": "source.yaml",
+    "sha256": "70f577f2e4683df5b0a2ede0981970da9646088a0c6811b2a174c52139566adc",
+    "size": 1787315,
+    "entries": 53817
+  },
+  "rules": {
+    "parts_of_speech": [
+      "감탄사",
+      "관형사",
+      "대명사",
+      "동사",
+      "명사",
+      "부사",
+      "수사",
+      "형용사"
+    ],
+    "format": "NFC [가-힣]{1,40}",
+    "exclude_forbidden": true
+  },
+  "output": {
+    "path": "words.txt",
+    "count": 49485,
+    "size": 514758,
+    "sha256": "12a05ad34e5cd2d60a9db6cded5d550fb664143171d410201026bde272738bec"
+  }
+}
