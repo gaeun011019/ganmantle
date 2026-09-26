@@ -4,7 +4,7 @@
 
 **로컬 주소: http://localhost:8000** · 친구에게 잠깐 보여줄 때는 [ngrok 공유 안내](docs/DEPLOYMENT.md)를 사용합니다. 별도 서버를 구매하지 않아도 되며 공유하는 동안 내 컴퓨터와 Docker를 켜 두어야 합니다.
 
-**2026-09-27:** 불필요 코드·중복 모델 정리와 전체 기록 초기화, 로컬 검사를 완료했습니다. GitHub 업로드는 진행 중이며 실제 결과는 [9월 26~27일 변경 기록](CHANGELOG/2026-09/26-001-cleanup-share-github.md)에 남깁니다. 실제 Mac/Apple Silicon·Safari·공개 HTTPS 연결은 아직 확인하지 않았습니다. 이전 검사 결과는 [검증 기록](docs/VALIDATION.md)에서 날짜별로 구분합니다.
+**2026-09-27:** 불필요 코드·중복 모델 정리와 전체 기록 초기화, 로컬 검사를 완료했습니다. [GitHub `main`](https://github.com/gaeun011019/ganmantle)에 업로드했고 최초 코드 커밋의 자동 검사도 통과했습니다. 실제 결과는 [9월 26~27일 변경 기록](CHANGELOG/2026-09/26-001-cleanup-share-github.md)에 남깁니다. 실제 Mac/Apple Silicon·Safari·공개 HTTPS 연결은 아직 확인하지 않았습니다. 이전 검사 결과는 [검증 기록](docs/VALIDATION.md)에서 날짜별로 구분합니다.
 
 ## 실행과 종료
 

@@ -103,7 +103,7 @@ docker compose ps
 
 ## GitHub 자동 검사
 
-`compose.yaml`과 `.github/`가 있는 `ganmantle-v1` 폴더를 저장소 루트로 사용합니다. 빈 원격 저장소에 현재 구현을 처음 올리는 작업이므로 `main` 하나로 관리합니다. `.github/workflows/check.yml`은 push·PR·수동 실행의 자동 검사이며 배포는 하지 않습니다. 실제 업로드·Actions 확인 결과는 [최신 변경 기록](../CHANGELOG/2026-09/26-001-cleanup-share-github.md)을 따릅니다.
+`compose.yaml`과 `.github/`가 있는 `ganmantle-v1` 폴더를 저장소 루트로 사용합니다. 빈 원격 저장소에 현재 구현을 처음 등록했으므로 `main` 하나로 관리합니다. 최초 코드 커밋의 원격 자동 검사 성공을 확인했습니다. `.github/workflows/check.yml`은 push·PR·수동 실행의 자동 검사이며 배포는 하지 않습니다. 실제 업로드·Actions 확인 결과는 [최신 변경 기록](../CHANGELOG/2026-09/26-001-cleanup-share-github.md)을 따릅니다.
 
 별도 Ubuntu runner에서 임시 설정을 만들고 잠금 파일 설치·TypeScript/Vite 빌드·PostgreSQL 규칙 검사·입력 사전을 검사합니다. 이 경로는 모델을 다운로드하지 않고 기존 테스트의 합성 벡터·규칙 모형을 사용합니다. 실제 모델·재시작·복원은 위의 로컬 검사와 구분합니다. checkout은 공식 v7.0.1의 전체 커밋 SHA에 고정했고 저장소 읽기 권한만 부여했습니다. [공식 릴리스 커밋](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1), [GitHub 고정 버전 안내](https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions).
 
