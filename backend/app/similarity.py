@@ -1,4 +1,5 @@
 """고정한 로컬 모델의 실제 벡터를 정규화해 코사인 × 100을 계산합니다."""
+
 from __future__ import annotations
 from functools import lru_cache
 import hashlib
@@ -25,7 +26,13 @@ class VectorUnavailableError(ModelUnavailableError):
 
 
 class SimilarityEngine:
-    def __init__(self, manifest_path: Path | None = None, directory: Path | None = None, *, require_ranks: bool = False) -> None:
+    def __init__(
+        self,
+        manifest_path: Path | None = None,
+        directory: Path | None = None,
+        *,
+        require_ranks: bool = False,
+    ) -> None:
         self.ready = False
         self.error = None
         self.name = "간맨틀 임베딩 모델"
@@ -36,24 +43,39 @@ class SimilarityEngine:
         self.dimension = 300
         started = time.perf_counter()
         try:
-            manifest = json.loads((manifest_path or ROOT / "model-manifest.json").read_text(encoding="utf-8-sig"))
+            manifest = json.loads(
+                (manifest_path or ROOT / "model-manifest.json").read_text(encoding="utf-8-sig")
+            )
             if manifest["algorithm"] != "fasttext-bin-subword-mean-l2-cosine100-v1":
                 raise ModelUnavailableError("fastText .bin 모델 명세가 필요합니다.")
             self.name = manifest.get("display_name", manifest["model_id"] + " · fastText")
-            self.fingerprint = hashlib.sha256(json.dumps({"revision": manifest["revision"], "algorithm": manifest["algorithm"], "files": manifest["files"]}, sort_keys=True).encode()).hexdigest()
+            self.fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "revision": manifest["revision"],
+                        "algorithm": manifest["algorithm"],
+                        "files": manifest["files"],
+                    },
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest()
             directory = Path(directory or os.getenv("MODEL_DIR", str(ROOT / manifest["directory"])))
             for item in manifest["files"]:
                 path = directory / item["path"]
                 if not path.is_file():
-                    raise ModelUnavailableError("모델 파일이 없습니다. scripts/prepare_model.py를 실행하세요.")
+                    raise ModelUnavailableError(
+                        "모델 파일이 없습니다. scripts/prepare_model.py를 실행하세요."
+                    )
                 if path.stat().st_size != item["size"]:
                     raise ModelUnavailableError("모델 파일 크기 검증 실패. 모델을 다시 준비하세요.")
                 # 같은 로컬 파일의 검증 캐시만 재사용하며, 앱은 캐시를 쓰지 않습니다.
                 if not verify_file(path, item):
                     raise ModelUnavailableError("모델 SHA-256 검증 실패. 모델을 다시 준비하세요.")
             import numpy as np
+
             self._np = np
             from .fasttext_bin import FastTextBin
+
             self.fasttext = FastTextBin(directory / "model.bin")
             self.dimension = self.fasttext.dimension
             if self.dimension != manifest["dimension"]:
@@ -63,7 +85,10 @@ class SimilarityEngine:
             self.vector("준비")
             if require_ranks:
                 from .word_ranks import WordRankIndex
-                self._rank_index = WordRankIndex(directory / "word-ranks", self.fingerprint, dimension=self.dimension)
+
+                self._rank_index = WordRankIndex(
+                    directory / "word-ranks", self.fingerprint, dimension=self.dimension
+                )
                 if self._rank_index.vectors.shape[1] != self.dimension:
                     raise ModelUnavailableError("모델과 비교 단어 벡터의 차원이 다릅니다.")
                 self.vector.cache_clear()
@@ -82,10 +107,13 @@ class SimilarityEngine:
         if not text:
             raise ModelUnavailableError("빈 입력은 계산할 수 없습니다.")
         from .fasttext_bin import FastTextVectorError
+
         try:
             result = self.fasttext.get_word_vector(text)
         except FastTextVectorError as exc:
-            raise VectorUnavailableError("이 단어를 계산할 서브워드가 없어요. 다른 한국어 단어를 입력해 주세요.") from exc
+            raise VectorUnavailableError(
+                "이 단어를 계산할 서브워드가 없어요. 다른 한국어 단어를 입력해 주세요."
+            ) from exc
         norm = np.linalg.norm(result)
         if not np.isfinite(result).all() or not np.isfinite(norm):
             raise ModelUnavailableError("모델이 유한한 벡터를 만들지 못했어요.")
@@ -100,16 +128,20 @@ class SimilarityEngine:
         if not self.ready:
             raise ModelUnavailableError(self.error or "모델 준비가 필요합니다.")
         from .word_ranks import cosine_scores
+
         return float(cosine_scores(self.vector(word).reshape(1, -1), self.vector(answer))[0])
 
     def rankings(self, answer: str) -> dict:
         if not self.ready or self._rank_index is None:
             raise ModelUnavailableError(self.error or "단어 유사도 순위 자료를 준비해 주세요.")
         from .word_ranks import WordRanksUnavailableError
+
         try:
             return self._rank_index.rankings(unicodedata.normalize("NFC", answer.strip()))
         except WordRanksUnavailableError as exc:
-            raise ModelUnavailableError("단어 유사도 순위를 계산하지 못했어요. 순위 자료를 다시 준비해 주세요.") from exc
+            raise ModelUnavailableError(
+                "단어 유사도 순위를 계산하지 못했어요. 순위 자료를 다시 준비해 주세요."
+            ) from exc
 
 
 @lru_cache(maxsize=1)

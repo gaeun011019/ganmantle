@@ -1,11 +1,18 @@
 """순위는 표시 점수의 추정이 아니라 전체 벡터의 원래 점수 순서여야 합니다."""
+
 import json
 
 import numpy as np
 import pytest
 
 from app import word_ranks
-from app.word_ranks import WordRankIndex, WordRanksUnavailableError, cosine_scores, digest, rank_for_score
+from app.word_ranks import (
+    WordRankIndex,
+    WordRanksUnavailableError,
+    cosine_scores,
+    digest,
+    rank_for_score,
+)
 
 
 def vectors(count=1003, dimension=300):
@@ -13,7 +20,7 @@ def vectors(count=1003, dimension=300):
     matrix[0, 0] = 1
     cosines = np.linspace(0.99, -0.1, count - 1, dtype=np.float32)
     matrix[1:, 0] = cosines
-    matrix[1:, 1] = np.sqrt(1 - cosines ** 2)
+    matrix[1:, 1] = np.sqrt(1 - cosines**2)
     return matrix
 
 
@@ -41,7 +48,9 @@ def test_actual_top_thousand_excludes_answer_and_outside_is_not_estimated():
     assert result["reference"]["vocabulary_size"] == 1003
     assert len(result["words"]) == 1000
     assert result["words"][0] == {
-        "word": "검사1", "similarity": result["reference"]["top1"], "rank": 1,
+        "word": "검사1",
+        "similarity": result["reference"]["top1"],
+        "rank": 1,
     }
     assert result["words"][9]["similarity"] == result["reference"]["top10"]
     assert result["words"][999]["similarity"] == result["reference"]["top1000"]
@@ -89,7 +98,10 @@ def test_single_vector_and_whole_matrix_use_identical_score_accumulation(dimensi
     assert together.dtype == np.float64
     assert np.array_equal(together, separate)
     for index in (0, 17, 1002):
-        independent = min(100.0, max(-100.0, sum(float(a) * float(b) for a, b in zip(matrix[index], answer)) * 100))
+        independent = min(
+            100.0,
+            max(-100.0, sum(float(a) * float(b) for a, b in zip(matrix[index], answer)) * 100),
+        )
         assert together[index] == pytest.approx(independent, abs=1e-12)
 
 
@@ -131,10 +143,20 @@ def prepared(tmp_path, monkeypatch):
     monkeypatch.setattr(word_ranks, "get_words", lambda: frozenset(names))
     (tmp_path / "words.json").write_text(json.dumps(names, ensure_ascii=False), encoding="utf-8")
     np.save(tmp_path / "vectors.npy", vectors(), allow_pickle=False)
-    metadata = {"format": 2, "model_fingerprint": "test-model", "dictionary_sha256": digest(dictionary),
-                "count": len(names), "dimension": 300, "excluded_words": [], "files": {}}
+    metadata = {
+        "format": 2,
+        "model_fingerprint": "test-model",
+        "dictionary_sha256": digest(dictionary),
+        "count": len(names),
+        "dimension": 300,
+        "excluded_words": [],
+        "files": {},
+    }
     for name in ("words.json", "vectors.npy"):
-        metadata["files"][name] = {"size": (tmp_path / name).stat().st_size, "sha256": digest(tmp_path / name)}
+        metadata["files"][name] = {
+            "size": (tmp_path / name).stat().st_size,
+            "sha256": digest(tmp_path / name),
+        }
     (tmp_path / "manifest.json").write_text(json.dumps(metadata), encoding="utf-8")
     return tmp_path, names, metadata
 
@@ -148,7 +170,21 @@ def test_loader_checks_corpus_and_reuses_real_vectors(prepared):
     assert index.rankings(names[0])["ranks"][names[1000]] == 1000
 
 
-@pytest.mark.parametrize("fault", ["missing", "format", "model", "dictionary", "checksum", "count", "dimension", "vocabulary", "nan", "norm"])
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "format",
+        "model",
+        "dictionary",
+        "checksum",
+        "count",
+        "dimension",
+        "vocabulary",
+        "nan",
+        "norm",
+    ],
+)
 def test_missing_stale_or_corrupt_index_is_rejected(prepared, fault):
     directory, _, metadata = prepared
     if fault == "missing":
@@ -171,7 +207,10 @@ def test_missing_stale_or_corrupt_index_is_rejected(prepared, fault):
             matrix = vectors()
             matrix[3] = np.nan if fault == "nan" else 0
             np.save(directory / name, matrix, allow_pickle=False)
-        metadata["files"][name] = {"size": (directory / name).stat().st_size, "sha256": digest(directory / name)}
+        metadata["files"][name] = {
+            "size": (directory / name).stat().st_size,
+            "sha256": digest(directory / name),
+        }
     (directory / "manifest.json").write_text(json.dumps(metadata), encoding="utf-8")
     with pytest.raises(WordRanksUnavailableError):
         WordRankIndex(directory, "test-model")
@@ -186,10 +225,18 @@ def prepared_format2(prepared):
     excluded = names[-2:]
     (directory / "words.json").write_text(json.dumps(valid, ensure_ascii=False), encoding="utf-8")
     np.save(directory / "vectors.npy", vectors(len(valid), 300), allow_pickle=False)
-    metadata.update(format=2, dictionary_sha256=digest(directory / "dictionary.txt"),
-                    count=len(valid), dimension=300, excluded_words=excluded)
+    metadata.update(
+        format=2,
+        dictionary_sha256=digest(directory / "dictionary.txt"),
+        count=len(valid),
+        dimension=300,
+        excluded_words=excluded,
+    )
     for name in ("words.json", "vectors.npy"):
-        metadata["files"][name] = {"size": (directory / name).stat().st_size, "sha256": digest(directory / name)}
+        metadata["files"][name] = {
+            "size": (directory / name).stat().st_size,
+            "sha256": digest(directory / name),
+        }
     (directory / "manifest.json").write_text(json.dumps(metadata), encoding="utf-8")
     return directory, valid, metadata
 
@@ -206,7 +253,10 @@ def test_format2_accepts_300_dimensions_and_records_exact_excluded_partition(pre
         WordRankIndex(directory, "test-model", dimension=299)
 
 
-@pytest.mark.parametrize("fault", ["missing", "overlap", "omitted", "foreign", "duplicate", "unsorted", "not-list", "too-few"])
+@pytest.mark.parametrize(
+    "fault",
+    ["missing", "overlap", "omitted", "foreign", "duplicate", "unsorted", "not-list", "too-few"],
+)
 def test_format2_requires_disjoint_complete_dictionary_partition(prepared_format2, fault):
     directory, valid, metadata = prepared_format2
     if fault == "missing":
@@ -229,7 +279,10 @@ def test_format2_requires_disjoint_complete_dictionary_partition(prepared_format
         (directory / "words.json").write_text(json.dumps(valid), encoding="utf-8")
         np.save(directory / "vectors.npy", vectors(len(valid), 300), allow_pickle=False)
         for name in ("words.json", "vectors.npy"):
-            metadata["files"][name] = {"size": (directory / name).stat().st_size, "sha256": digest(directory / name)}
+            metadata["files"][name] = {
+                "size": (directory / name).stat().st_size,
+                "sha256": digest(directory / name),
+            }
     (directory / "manifest.json").write_text(json.dumps(metadata), encoding="utf-8")
     with pytest.raises(WordRanksUnavailableError):
         WordRankIndex(directory, "test-model", dimension=300)

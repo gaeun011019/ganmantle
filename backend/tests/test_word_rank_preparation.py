@@ -1,4 +1,5 @@
 """준비 파일 재개의 출처 보존을 임시 파일로 검사합니다. 모델·운영 DB는 사용하지 않습니다."""
+
 import json
 from pathlib import Path
 import sys
@@ -24,7 +25,9 @@ def checkpoint(tmp_path, monkeypatch):
     model_directory = tmp_path / "model"
     destination = model_directory / "word-ranks"
     destination.mkdir(parents=True)
-    (tmp_path / "model-manifest.json").write_text(json.dumps({"directory": "model"}), encoding="utf-8")
+    (tmp_path / "model-manifest.json").write_text(
+        json.dumps({"directory": "model"}), encoding="utf-8"
+    )
     answers = tmp_path / "backend" / "app" / "answers.txt"
     answers.parent.mkdir(parents=True)
     answers.write_text("\n".join(names[:90]) + "\n", encoding="utf-8")
@@ -35,24 +38,50 @@ def checkpoint(tmp_path, monkeypatch):
     old_vectors[:, 100] = 1.0  # 정상적인 단위 벡터지만 이전 모델에서 만든 다른 결과입니다.
     np.save(destination / "vectors.npy", old_vectors, allow_pickle=False)
     (destination / "words.json").write_text(json.dumps(names, ensure_ascii=False), encoding="utf-8")
-    (destination / "manifest.json").write_text(json.dumps({"model_fingerprint": "old-model"}), encoding="utf-8")
-    signature = {"format": 2, "model_fingerprint": "new-model", "dictionary_sha256": digest(dictionary),
-                 "count": len(names), "dimension": 300}
-    (destination / "progress.json").write_text(json.dumps({"signature": signature, "completed": len(names)}), encoding="utf-8")
-    engine = SimpleNamespace(ready=True, fingerprint="new-model", dimension=300,
-                             vector=Mock(side_effect=lambda word: vectors[names.index(word)]))
+    (destination / "manifest.json").write_text(
+        json.dumps({"model_fingerprint": "old-model"}), encoding="utf-8"
+    )
+    signature = {
+        "format": 2,
+        "model_fingerprint": "new-model",
+        "dictionary_sha256": digest(dictionary),
+        "count": len(names),
+        "dimension": 300,
+    }
+    (destination / "progress.json").write_text(
+        json.dumps({"signature": signature, "completed": len(names)}), encoding="utf-8"
+    )
+    engine = SimpleNamespace(
+        ready=True,
+        fingerprint="new-model",
+        dimension=300,
+        vector=Mock(side_effect=lambda word: vectors[names.index(word)]),
+    )
     constructor = Mock(return_value=engine)
     # 첫 검증은 이전 모델의 완료 파일을 거부하고, 정상 새 결과가 만들어지면 두 번째 검증을 합니다.
-    validator = Mock(side_effect=[WordRanksUnavailableError("TEST ONLY: old model"), SimpleNamespace(words=names)])
+    validator = Mock(
+        side_effect=[
+            WordRanksUnavailableError("TEST ONLY: old model"),
+            SimpleNamespace(words=names),
+        ]
+    )
     monkeypatch.setattr(similarity, "SimilarityEngine", constructor)
     monkeypatch.setattr(word_ranks, "WordRankIndex", validator)
     monkeypatch.setattr(words, "WORDS_PATH", dictionary)
     monkeypatch.setattr(words, "get_words", lambda: frozenset(names))
     monkeypatch.setattr(prepare_word_ranks, "ROOT", tmp_path)
     monkeypatch.setattr(sys, "argv", ["prepare_word_ranks.py", "--directory", str(model_directory)])
-    return SimpleNamespace(destination=destination, names=names, vectors=vectors,
-                           signature=signature, engine=engine, validator=validator, root=tmp_path,
-                           constructor=constructor, dictionary=dictionary)
+    return SimpleNamespace(
+        destination=destination,
+        names=names,
+        vectors=vectors,
+        signature=signature,
+        engine=engine,
+        validator=validator,
+        root=tmp_path,
+        constructor=constructor,
+        dictionary=dictionary,
+    )
 
 
 def snapshot(directory):
@@ -66,7 +95,12 @@ def test_completed_checkpoint_without_partial_cannot_relabel_old_final_vectors(c
     with pytest.raises(SystemExit, match="기존 완료 파일을 재사용하지 않습니다"):
         prepare_word_ranks.main()
     assert snapshot(prepared.destination) == before
-    assert json.loads((prepared.destination / "manifest.json").read_text(encoding="utf-8"))["model_fingerprint"] == "old-model"
+    assert (
+        json.loads((prepared.destination / "manifest.json").read_text(encoding="utf-8"))[
+            "model_fingerprint"
+        ]
+        == "old-model"
+    )
     prepared.engine.vector.assert_not_called()
     prepared.validator.assert_called_once_with(prepared.destination, "new-model", dimension=300)
 
@@ -78,7 +112,8 @@ def test_existing_partial_resumes_and_publishes_only_its_own_vectors(checkpoint,
     partial[completed:] = 0.0
     np.save(prepared.destination / "vectors.partial.npy", partial, allow_pickle=False)
     (prepared.destination / "progress.json").write_text(
-        json.dumps({"signature": prepared.signature, "completed": completed}), encoding="utf-8")
+        json.dumps({"signature": prepared.signature, "completed": completed}), encoding="utf-8"
+    )
     prepare_word_ranks.main()
     actual = np.load(prepared.destination / "vectors.npy", allow_pickle=False)
     assert np.array_equal(actual, prepared.vectors)
@@ -86,7 +121,9 @@ def test_existing_partial_resumes_and_publishes_only_its_own_vectors(checkpoint,
     assert not (prepared.destination / "progress.json").exists()
     manifest = json.loads((prepared.destination / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["model_fingerprint"] == "new-model"
-    assert manifest["files"]["vectors.npy"]["sha256"] == digest(prepared.destination / "vectors.npy")
+    assert manifest["files"]["vectors.npy"]["sha256"] == digest(
+        prepared.destination / "vectors.npy"
+    )
     assert prepared.validator.call_count == 2
     if completed == len(prepared.names):
         prepared.engine.vector.assert_not_called()
@@ -110,8 +147,9 @@ def fasttext_preparation(tmp_path, monkeypatch):
     for index in range(len(names)):
         matrix[index, index % 300] = 1
     positions = {word: index for index, word in enumerate(names)}
-    controls = SimpleNamespace(excluded={names[99], names[-1]}, failure=None,
-                               invalid_word=None, invalid_vector=None)
+    controls = SimpleNamespace(
+        excluded={names[99], names[-1]}, failure=None, invalid_word=None, invalid_vector=None
+    )
 
     def vector(word):
         if word == controls.failure:
@@ -122,8 +160,14 @@ def fasttext_preparation(tmp_path, monkeypatch):
             raise similarity.VectorUnavailableError("TEST ONLY: no vector")
         return matrix[positions[word]]
 
-    engine = SimpleNamespace(ready=True, error=None, fingerprint="fasttext-test", dimension=300,
-                             supports_oov=True, vector=Mock(side_effect=vector))
+    engine = SimpleNamespace(
+        ready=True,
+        error=None,
+        fingerprint="fasttext-test",
+        dimension=300,
+        supports_oov=True,
+        vector=Mock(side_effect=vector),
+    )
     constructor = Mock(return_value=engine)
     monkeypatch.setattr(similarity, "SimilarityEngine", constructor)
     monkeypatch.setattr(words, "WORDS_PATH", dictionary)
@@ -133,23 +177,38 @@ def fasttext_preparation(tmp_path, monkeypatch):
     monkeypatch.setattr(prepare_word_ranks, "ROOT", tmp_path)
     monkeypatch.delenv("MODEL_DIR", raising=False)
     monkeypatch.setattr(sys, "argv", ["prepare_word_ranks.py", "--manifest", str(manifest)])
-    return SimpleNamespace(names=names, matrix=matrix, controls=controls, engine=engine,
-                           constructor=constructor, manifest=manifest, directory=model_directory,
-                           destination=model_directory / "word-ranks")
+    return SimpleNamespace(
+        names=names,
+        matrix=matrix,
+        controls=controls,
+        engine=engine,
+        constructor=constructor,
+        manifest=manifest,
+        directory=model_directory,
+        destination=model_directory / "word-ranks",
+    )
 
 
-def test_new_manifest_prepares_300_dimensions_excluding_only_unavailable_vectors(fasttext_preparation):
+def test_new_manifest_prepares_300_dimensions_excluding_only_unavailable_vectors(
+    fasttext_preparation,
+):
     prepared = fasttext_preparation
     prepare_word_ranks.main()
-    prepared.constructor.assert_called_once_with(directory=prepared.directory, manifest_path=prepared.manifest)
+    prepared.constructor.assert_called_once_with(
+        directory=prepared.directory, manifest_path=prepared.manifest
+    )
     metadata = json.loads((prepared.destination / "manifest.json").read_text(encoding="utf-8"))
     assert metadata["format"] == 2
     assert metadata["dimension"] == 300 and metadata["count"] == 1002
     assert metadata["excluded_words"] == sorted(prepared.controls.excluded)
     names = json.loads((prepared.destination / "words.json").read_text(encoding="utf-8"))
-    expected_positions = [index for index, word in enumerate(prepared.names) if word not in prepared.controls.excluded]
+    expected_positions = [
+        index for index, word in enumerate(prepared.names) if word not in prepared.controls.excluded
+    ]
     assert names == [prepared.names[index] for index in expected_positions]
-    assert np.array_equal(np.load(prepared.destination / "vectors.npy"), prepared.matrix[expected_positions])
+    assert np.array_equal(
+        np.load(prepared.destination / "vectors.npy"), prepared.matrix[expected_positions]
+    )
     assert set(prepared.names[:90]) <= set(names)
     assert not (prepared.destination / "progress.json").exists()
     assert not (prepared.destination / "vectors.partial.npy").exists()
@@ -202,7 +261,9 @@ def test_invalid_vectors_are_errors_instead_of_silent_exclusions(fasttext_prepar
 
 
 @pytest.mark.parametrize("fault", ["future", "duplicate", "missing", "nonzero"])
-def test_corrupt_exclusion_checkpoint_is_rejected_without_more_inference(fasttext_preparation, fault):
+def test_corrupt_exclusion_checkpoint_is_rejected_without_more_inference(
+    fasttext_preparation, fault
+):
     prepared = fasttext_preparation
     prepared.controls.failure = prepared.names[1001]
     with pytest.raises(RuntimeError):
@@ -227,7 +288,9 @@ def test_corrupt_exclusion_checkpoint_is_rejected_without_more_inference(fasttex
     assert snapshot(prepared.destination) == before
 
 
-def test_interrupted_final_publish_reuses_complete_partial_without_new_vectors(fasttext_preparation, monkeypatch):
+def test_interrupted_final_publish_reuses_complete_partial_without_new_vectors(
+    fasttext_preparation, monkeypatch
+):
     prepared = fasttext_preparation
     original_write = prepare_word_ranks.write_json
 

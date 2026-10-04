@@ -45,12 +45,13 @@ export default function GuessHistory({
         if (!controller.signal.aborted) setHistory(result);
       },
       (cause: unknown) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
           setError(
             cause instanceof ApiError
               ? cause.message
               : '기록을 불러오지 못했어요. 다시 시도해 주세요.',
           );
+        }
       },
     );
     return () => controller.abort();

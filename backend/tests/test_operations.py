@@ -1,4 +1,5 @@
 """운영 준비: 상태 검사와 HTTPS 설정을 PostgreSQL의 임시 스키마에서 검증합니다."""
+
 from contextlib import contextmanager
 
 import psycopg
@@ -39,7 +40,9 @@ def test_unprepared_model_returns_503_without_internal_error(runtime):
 
 
 @pytest.mark.parametrize("failure_point", ["connect", "query"])
-def test_database_failure_returns_503_without_internal_error(runtime, monkeypatch, caplog, failure_point):
+def test_database_failure_returns_503_without_internal_error(
+    runtime, monkeypatch, caplog, failure_point
+):
     client, _, _ = runtime
     internal_message = "TEST ONLY: private database connection detail"
 
@@ -73,17 +76,23 @@ def test_https_origin_and_secure_cookie_preserve_game_session(runtime, monkeypat
     monkeypatch.setenv("APP_ORIGIN", origin)
     monkeypatch.setenv("COOKIE_SECURE", "true")
     with TestClient(main.app, base_url=origin) as client:
-        registered = client.post("/api/users", json={"nickname": "HTTPS검증"}, headers={"Origin": origin})
+        registered = client.post(
+            "/api/users", json={"nickname": "HTTPS검증"}, headers={"Origin": origin}
+        )
         assert registered.status_code == 200
         cookie = registered.headers["set-cookie"]
         assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=lax" in cookie
         state = registered.json()
         assert client.get("/api/state").json()["user"] == state["user"]
-        started = client.post("/api/start", json={"puzzle_date": state["puzzle_date"]}, headers={"Origin": origin})
+        started = client.post(
+            "/api/start", json={"puzzle_date": state["puzzle_date"]}, headers={"Origin": origin}
+        )
         assert started.status_code == 200
         assert started.json()["game"]["attempts"] == 0
         for blocked_origin in ("http://ganmantle.example", "https://another.example"):
-            rejected = client.post("/api/users", json={"nickname": "변경거부"}, headers={"Origin": blocked_origin})
+            rejected = client.post(
+                "/api/users", json={"nickname": "변경거부"}, headers={"Origin": blocked_origin}
+            )
             assert rejected.status_code == 403
             assert rejected.json()["detail"]["code"] == "invalid_origin"
         assert client.get("/api/state").json()["user"] == state["user"]

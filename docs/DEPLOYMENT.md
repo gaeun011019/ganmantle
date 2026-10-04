@@ -1,10 +1,12 @@
 # 간맨틀 친구 공유와 실행 관리
 
-현재 사용 방식은 **내 PC의 간맨틀을 ngrok 링크로 친구에게 잠깐 공유**하는 것입니다. 앱 하나와 PostgreSQL 하나를 유지합니다. 서버 구매·상시 공개 배포는 진행하지 않습니다. 최신 정리·GitHub 상태는 [9월 26일 변경 기록](../CHANGELOG/2026-09/26-001-cleanup-share-github.md)을 확인합니다.
+현재 사용 방식은 **내 PC의 간맨틀을 ngrok 링크로 친구에게 잠깐 공유**하는 것입니다. 앱 하나와 PostgreSQL 하나를 유지합니다. 서버 구매·상시 공개 배포는 진행하지 않습니다. 최신 GitHub 반영 범위는 [10월 4일 변경 기록](../CHANGELOG/2026-10/04-004-github-update.md)을 확인합니다.
+
+**Windows에서 맥으로 서버를 옮기거나 맥에서 관리하려면 [Mac 실행·관리 안내](MAC.md)를 먼저 보세요.** 현재 소스 준비, 최초 실행, 최종 DB 백업·새 DB 복원, 같은 ngrok 주소로 전환하는 순서가 있습니다. 맥에서 플레이만 하는 경우에는 기존 HTTPS 링크를 사용하면 됩니다.
 
 ## 친구에게 ngrok 링크로 공유
 
-현재는 **공유 준비까지만** 완료하는 범위입니다. ngrok 계정·인증 토큰이 준비되지 않아 실제 외부 링크는 열지 않았습니다. 아래 절차는 계정을 준비한 뒤 사용합니다. PC가 절전 상태가 되거나 Docker·앱·ngrok를 종료하면 친구의 접속도 끊깁니다. DB 기록은 볼륨에 남습니다.
+**2026-10-04 Windows 확인:** ngrok 계정 연결·공유 인증·HTTPS 설정을 마쳤고, 실제 외부 주소에서 인증 후 게임 화면이 열리는 것을 사용자가 확인했습니다. 아래는 처음 준비하거나 다른 기기로 옮길 때의 절차입니다. PC가 절전 상태가 되거나 Docker·앱·ngrok를 종료하면 친구의 접속도 끊깁니다. DB 기록은 볼륨에 남습니다.
 
 1. [ngrok 공식 다운로드](https://ngrok.com/downloads)에서 Windows 또는 Mac용 프로그램을 설치하고 계정을 만듭니다. 공식 시작 안내대로 `ngrok config add-authtoken`에 **본인의 토큰을 로컬 터미널에서만** 설정합니다. 토큰은 프로젝트의 `.env`나 Git에 넣지 않으며 채팅으로 전달하지 않습니다. [설치·계정 연결 안내](https://ngrok.com/docs/getting-started/).
 2. 프로젝트 루트의 [ngrok.example.yml](../ngrok.example.yml)을 **`ngrok.local.yml`**로 복사합니다. `credentials`의 아이디·비밀번호 자리표시자를 직접 바꿉니다. 비밀번호는 8~128자이며 영문·숫자를 섞은 충분히 긴 값을 사용합니다. 실제 파일은 Git·Docker 빌드에서 제외됩니다. `enforce: true`는 유지합니다. [공식 Basic Auth 설정](https://ngrok.com/docs/gateway/traffic-policy/actions/basic-auth).
@@ -24,12 +26,14 @@
 
    `8000`은 기본 `APP_PORT`입니다. 포트를 바꿨다면 같은 값으로 맞춥니다. ngrok의 `Forwarding` HTTPS 주소와 `APP_ORIGIN`이 같아야 합니다. 다르면 `.env`를 실제 주소로 맞추고 `docker compose up -d --no-deps app`으로 반영합니다. `--host-header=rewrite`는 사용하지 않습니다.
 
+   앱을 시작하거나 재시작한 뒤에는 `docker compose ps`에서 `app`이 **healthy**가 될 때까지 기다립니다. 모델 준비에 몇 분 걸릴 수 있으며, 준비 중 접속하면 ngrok 오류가 나타날 수 있습니다. 정상 상태가 된 뒤 같은 주소를 새로고침합니다.
+
 5. 공유 전에 새 브라우저 창에서 비밀번호 없이 접근이 거절되는지, 올바른 아이디·비밀번호로 닉네임 설정·단어 입력·채팅·새로고침이 되는지 확인합니다. 친구에게는 **HTTPS 링크와 공유용 아이디·비밀번호**만 전달합니다. ngrok 인증 토큰·DB 비밀번호는 전달하지 않습니다.
 6. 공유 종료는 ngrok 터미널에서 `Ctrl+C`입니다. 다시 localhost로만 개발하려면 `.env`를 `APP_ORIGIN=`·`COOKIE_SECURE=false`로 되돌리고 `docker compose up -d --no-deps app`을 실행합니다. 게임을 완전히 멈추려면 `docker compose stop`을 사용합니다.
 
 로컬 주소와 공유 도메인은 브라우저 쿠키가 별개라 같은 브라우저에서도 다른 사용자로 보일 수 있습니다. ngrok의 비밀번호는 링크 입장용이며 게임 닉네임과는 다릅니다. 방화벽의 DB 포트를 열거나 공유기의 포트 전달을 추가할 필요는 없습니다.
 
-**2026-09-26 공식 안내 확인:** 무료 요금제는 월 HTTP 요청 20,000회·외부 전송 1GB 제한과 첫 방문 안내 화면이 있습니다. 랭킹·상태 자동 조회도 요청을 사용하므로 사용량은 ngrok 대시보드에서 확인합니다. 비용이나 한도가 바뀔 수 있어 사용 시 [공식 제한](https://ngrok.com/docs/pricing-limits/free-plan-limits)을 다시 확인합니다. 실제 외부 로그인·SSE 연결 검증은 계정 설정 후 남은 작업입니다.
+**2026-09-26 공식 안내 확인:** 무료 요금제는 월 HTTP 요청 20,000회·외부 전송 1GB 제한과 첫 방문 안내 화면이 있습니다. 랭킹·상태 자동 조회도 요청을 사용하므로 사용량은 ngrok 대시보드에서 확인합니다. 비용이나 한도가 바뀔 수 있어 사용 시 [공식 제한](https://ngrok.com/docs/pricing-limits/free-plan-limits)을 다시 확인합니다. 외부 인증 후 화면 접속은 위의 10월 4일 사용자 확인과 구분하며, 친구 기기에서의 실제 SSE 채팅은 별도로 확인합니다.
 
 ## 파일과 데이터 위치
 
@@ -103,7 +107,7 @@ docker compose ps
 
 ## GitHub 자동 검사
 
-`compose.yaml`과 `.github/`가 있는 `ganmantle-v1` 폴더를 저장소 루트로 사용합니다. 빈 원격 저장소에 현재 구현을 처음 등록했으므로 `main` 하나로 관리합니다. 최초 코드 커밋의 원격 자동 검사 성공을 확인했습니다. `.github/workflows/check.yml`은 push·PR·수동 실행의 자동 검사이며 배포는 하지 않습니다. 실제 업로드·Actions 확인 결과는 [최신 변경 기록](../CHANGELOG/2026-09/26-001-cleanup-share-github.md)을 따릅니다.
+`compose.yaml`과 `.github/`가 있는 `ganmantle-v1` 폴더를 저장소 루트로 사용합니다. 빈 원격 저장소에 현재 구현을 처음 등록했으므로 `main` 하나로 관리합니다. 최초 코드 커밋의 원격 자동 검사 성공을 확인했습니다. `.github/workflows/check.yml`은 push·PR·수동 실행의 자동 검사이며 배포는 하지 않습니다. 최신 반영 범위는 [10월 4일 변경 기록](../CHANGELOG/2026-10/04-004-github-update.md), 각 커밋의 원격 검사 결과는 [GitHub Actions](https://github.com/gaeun011019/ganmantle/actions)를 확인합니다.
 
 별도 Ubuntu runner에서 임시 설정을 만들고 잠금 파일 설치·TypeScript/Vite 빌드·PostgreSQL 규칙 검사·입력 사전을 검사합니다. 이 경로는 모델을 다운로드하지 않고 기존 테스트의 합성 벡터·규칙 모형을 사용합니다. 실제 모델·재시작·복원은 위의 로컬 검사와 구분합니다. checkout은 공식 v7.0.1의 전체 커밋 SHA에 고정했고 저장소 읽기 권한만 부여했습니다. [공식 릴리스 커밋](https://github.com/actions/checkout/commit/3d3c42e5aac5ba805825da76410c181273ba90b1), [GitHub 고정 버전 안내](https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions).
 

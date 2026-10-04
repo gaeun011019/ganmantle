@@ -1,4 +1,5 @@
 """실제 PostgreSQL에서 게임 규칙을 검사합니다. 운영 유사도는 이 가짜 모델을 사용하지 않습니다."""
+
 import os
 import sys
 import unicodedata
@@ -19,6 +20,7 @@ from app import db, game, main
 
 class RuleTestEngine:
     """100으로 반올림되는 오답/계산 실패를 재현하는 규칙 검사용 모형입니다."""
+
     ready = True
     name = "TEST ONLY: deterministic game-rule fixture"
     error = None
@@ -27,10 +29,26 @@ class RuleTestEngine:
 
     def rankings(self, answer):
         # API 규칙용 고정 자료입니다. 실제 순위/경계 계산은 WordRankIndex 검사에서 따로 확인합니다.
-        return {"ranks": {answer: 0, "연필": 1, "산책": 10, "바다": 10, "모니터": 10,
-                          "학교": 10, "키보드": 10, "걷다": 10, "아": 10, "바나나": 10},
-                "reference": {"vocabulary_size": 49485, "top1": 99.9999,
-                              "top10": 23.4567, "top1000": 12.5}}
+        return {
+            "ranks": {
+                answer: 0,
+                "연필": 1,
+                "산책": 10,
+                "바다": 10,
+                "모니터": 10,
+                "학교": 10,
+                "키보드": 10,
+                "걷다": 10,
+                "아": 10,
+                "바나나": 10,
+            },
+            "reference": {
+                "vocabulary_size": 49485,
+                "top1": 99.9999,
+                "top10": 23.4567,
+                "top1000": 12.5,
+            },
+        }
 
     def score(self, word, answer):
         if word == "실패":
@@ -46,12 +64,16 @@ class RuleTestEngine:
 def runtime(monkeypatch, tmp_path):
     database_url = os.getenv("TEST_DATABASE_URL")
     if not database_url:
-        pytest.skip("TEST_DATABASE_URL을 지정하면 실제 PostgreSQL의 별도 임시 스키마에서 검사합니다.")
+        pytest.skip(
+            "TEST_DATABASE_URL을 지정하면 실제 PostgreSQL의 별도 임시 스키마에서 검사합니다."
+        )
     schema = "ganmantle_test_" + uuid4().hex
     with psycopg.connect(database_url, autocommit=True) as admin:
         admin.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
     # public를 검색하면 기존 앱 테이블로 잘못 연결될 수 있어 임시 스키마만 씁니다.
-    monkeypatch.setenv("DATABASE_URL", make_conninfo(database_url, options=f"-c search_path={schema}"))
+    monkeypatch.setenv(
+        "DATABASE_URL", make_conninfo(database_url, options=f"-c search_path={schema}")
+    )
     monkeypatch.delenv("APP_ORIGIN", raising=False)
     monkeypatch.setenv("COOKIE_SECURE", "false")
     clock = {"now": datetime(2026, 9, 19, 2, 0, tzinfo=UTC)}
@@ -201,7 +223,9 @@ def test_nickname_unique_cookie_session_and_origin(runtime):
         assert stranger.get("/api/state").json()["user"] is None
         day = stranger.get("/api/state").json()["puzzle_date"]
         assert stranger.post("/api/start", json={"puzzle_date": day}).status_code == 401
-    forbidden = client.post("/api/start", json={"puzzle_date": day}, headers={"origin": "https://another.example"})
+    forbidden = client.post(
+        "/api/start", json={"puzzle_date": day}, headers={"origin": "https://another.example"}
+    )
     assert forbidden.status_code == 403
     assert scalar("SELECT session_hash FROM users") != client.cookies["ganmantle_session"]
 
@@ -233,7 +257,9 @@ def test_simultaneous_starts_create_one_game_and_never_reset_time(runtime):
     assert "SameSite=lax" in created.headers["set-cookie"]
     day = created.json()["puzzle_date"]
     with ThreadPoolExecutor(max_workers=4) as pool:
-        responses = list(pool.map(lambda _: client.post("/api/start", json={"puzzle_date": day}), range(4)))
+        responses = list(
+            pool.map(lambda _: client.post("/api/start", json={"puzzle_date": day}), range(4))
+        )
     assert all(response.status_code == 200 for response in responses)
     assert len({response.json()["game"]["started_at"] for response in responses}) == 1
     assert scalar("SELECT count(*) FROM games") == 1
@@ -246,7 +272,16 @@ def test_simultaneous_starts_create_one_game_and_never_reset_time(runtime):
 def test_client_cannot_forge_game_fields_or_user_cookie(runtime):
     client, _, _ = runtime
     day, started = begin(client)
-    forged = client.post("/api/guesses", json={"puzzle_date": day, "word": "산책", "similarity": 100, "attempts": 0, "elapsed_ms": 1})
+    forged = client.post(
+        "/api/guesses",
+        json={
+            "puzzle_date": day,
+            "word": "산책",
+            "similarity": 100,
+            "attempts": 0,
+            "elapsed_ms": 1,
+        },
+    )
     assert forged.status_code == 422
     assert client.get("/api/state").json()["game"]["attempts"] == 0
     with TestClient(main.app) as stranger:
@@ -259,9 +294,11 @@ def test_failure_crossing_midnight_still_returns_date_changed(runtime, monkeypat
     client, clock, engine = runtime
     clock["now"] = datetime(2026, 9, 19, 14, 59, 59, tzinfo=UTC)
     day, _ = begin(client)
+
     def failed_after_midnight(word, answer):
         clock["now"] = datetime(2026, 9, 19, 15, 0, 1, tzinfo=UTC)
         raise ValueError("TEST ONLY: inference failed after midnight")
+
     monkeypatch.setattr(engine, "score", failed_after_midnight)
     response = submit(client, day, "산책")
     assert response.status_code == 409
@@ -273,10 +310,14 @@ def test_failure_crossing_midnight_still_returns_date_changed(runtime, monkeypat
 def test_yesterday_answer_is_null_when_only_other_days_are_saved(runtime):
     client, _, engine = runtime
     with db.connect() as conn:
-        conn.execute("INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
-                     ("2026-09-17", "바다", engine.fingerprint))
-        conn.execute("INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
-                     ("2026-09-20", "여름", engine.fingerprint))
+        conn.execute(
+            "INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
+            ("2026-09-17", "바다", engine.fingerprint),
+        )
+        conn.execute(
+            "INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
+            ("2026-09-20", "여름", engine.fingerprint),
+        )
     response = client.get("/api/state")
     assert response.status_code == 200
     state = response.json()
@@ -292,10 +333,14 @@ def test_yesterday_answer_is_null_when_only_other_days_are_saved(runtime):
 def test_yesterday_answer_uses_server_date_even_for_stale_or_future_requests(runtime):
     client, _, engine = runtime
     with db.connect() as conn:
-        conn.execute("INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
-                     ("2026-09-17", "산책", engine.fingerprint))
-        conn.execute("INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
-                     ("2026-09-18", "바다", engine.fingerprint))
+        conn.execute(
+            "INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
+            ("2026-09-17", "산책", engine.fingerprint),
+        )
+        conn.execute(
+            "INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
+            ("2026-09-18", "바다", engine.fingerprint),
+        )
     # 미래 날짜를 요청해 오늘 정답을 '어제 정답'으로 알아내는 것도 차단합니다.
     for requested_day in ("2026-09-17", "2026-09-19", "2026-09-20"):
         response = client.get("/api/state", params={"puzzle_date": requested_day})
@@ -320,8 +365,10 @@ def test_yesterday_answer_changes_at_korean_midnight(runtime):
     client, clock, engine = runtime
     clock["now"] = datetime(2026, 9, 19, 14, 59, 59, tzinfo=UTC)
     with db.connect() as conn:
-        conn.execute("INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
-                     ("2026-09-18", "바다", engine.fingerprint))
+        conn.execute(
+            "INSERT INTO puzzles (puzzle_date, answer, model_fingerprint) VALUES (%s, %s, %s)",
+            ("2026-09-18", "바다", engine.fingerprint),
+        )
     before = client.get("/api/state")
     assert before.json()["puzzle_date"] == "2026-09-19"
     assert before.json()["yesterday_answer"] == "바다"

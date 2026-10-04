@@ -4,6 +4,7 @@
 SSE 무한 스트림은 TestClient로 열지 않고 인증·Origin 거절과 미들웨어만 검사합니다.
 실제 스트림 전달·재연결 검사는 별도의 실행 확인에서 구분합니다.
 """
+
 import asyncio
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
@@ -34,9 +35,13 @@ def rooms(client):
 
 
 def send(client, room_id, body, client_id=None):
-    return client.post(f"{PREFIX}/rooms/{room_id}/messages", json={
-        "body": body, "client_id": client_id or str(uuid4()),
-    })
+    return client.post(
+        f"{PREFIX}/rooms/{room_id}/messages",
+        json={
+            "body": body,
+            "client_id": client_id or str(uuid4()),
+        },
+    )
 
 
 def messages(client, room_id=GLOBAL, **params):
@@ -93,7 +98,10 @@ def test_global_chat_is_shared_and_keeps_html_as_plain_message_text(runtime):
         assert [message["nickname"] for message in saved] == [author["nickname"], peer["nickname"]]
         assert all(isinstance(message["id"], str) for message in saved)
         assert all(message["room_id"] == GLOBAL for message in saved)
-        assert all(set(message) == {"id", "room_id", "sender_id", "nickname", "body", "created_at"} for message in saved)
+        assert all(
+            set(message) == {"id", "room_id", "sender_id", "nickname", "body", "created_at"}
+            for message in saved
+        )
         assert "session_hash" not in str(saved)
         assert client.cookies["ganmantle_session"] not in str(saved)
 
@@ -210,9 +218,14 @@ def test_invalid_identifiers_search_and_client_forged_fields_are_rejected(runtim
         assert client.get(f"{PREFIX}/{path}").status_code == 422
     assert client.post(f"{PREFIX}/direct", json={"user_id": "not-a-uuid"}).status_code == 422
     assert send(client, GLOBAL, "유효하지 않은 전송번호", "not-a-uuid").status_code == 422
-    forged = client.post(f"{PREFIX}/rooms/{GLOBAL}/messages", json={
-        "body": "다른 작성자 사칭", "client_id": str(uuid4()), "sender_id": str(uuid4()),
-    })
+    forged = client.post(
+        f"{PREFIX}/rooms/{GLOBAL}/messages",
+        json={
+            "body": "다른 작성자 사칭",
+            "client_id": str(uuid4()),
+            "sender_id": str(uuid4()),
+        },
+    )
     assert forged.status_code == 422
     assert messages(client)["messages"] == []
 
@@ -223,17 +236,31 @@ def test_room_and_history_bounds_reject_invalid_requests(runtime):
     for name in ("", "   ", "가" * 41):
         response = client.post(f"{PREFIX}/rooms", json={"name": name, "invitee_ids": []})
         assert response.status_code in {400, 422}, response.text
-    too_many = client.post(f"{PREFIX}/rooms", json={
-        "name": "초대 인원 제한", "invitee_ids": [str(uuid4()) for _ in range(21)],
-    })
+    too_many = client.post(
+        f"{PREFIX}/rooms",
+        json={
+            "name": "초대 인원 제한",
+            "invitee_ids": [str(uuid4()) for _ in range(21)],
+        },
+    )
     assert too_many.status_code == 422
-    missing_user = client.post(f"{PREFIX}/rooms", json={
-        "name": "없는 사용자 초대", "invitee_ids": [str(uuid4())],
-    })
+    missing_user = client.post(
+        f"{PREFIX}/rooms",
+        json={
+            "name": "없는 사용자 초대",
+            "invitee_ids": [str(uuid4())],
+        },
+    )
     assert missing_user.status_code == 404
     assert [room["kind"] for room in rooms(client)["rooms"]] == ["global"]
-    for query in ({"limit": 0}, {"limit": 101}, {"before": "abc"}, {"before": 0},
-                  {"before": -1}, {"before": str(2 ** 63)}):
+    for query in (
+        {"limit": 0},
+        {"limit": 101},
+        {"before": "abc"},
+        {"before": 0},
+        {"before": -1},
+        {"before": str(2**63)},
+    ):
         response = client.get(f"{PREFIX}/rooms/{GLOBAL}/messages", params=query)
         assert response.status_code == 422, (query, response.text)
     for query in ("", "한"):
@@ -247,8 +274,12 @@ def test_concurrent_retries_are_idempotent_and_conflicting_reuse_is_rejected(run
     register(client, "전송중복작성자")
     client_id = str(uuid4())
     with ThreadPoolExecutor(max_workers=4) as pool:
-        responses = list(pool.map(lambda _: send(client, GLOBAL, "한 번만 저장", client_id), range(4)))
-    assert all(response.status_code == 200 for response in responses), [response.text for response in responses]
+        responses = list(
+            pool.map(lambda _: send(client, GLOBAL, "한 번만 저장", client_id), range(4))
+        )
+    assert all(response.status_code == 200 for response in responses), [
+        response.text for response in responses
+    ]
     assert len({response.json()["message"]["id"] for response in responses}) == 1
     assert len(messages(client)["messages"]) == 1
     assert send(client, GLOBAL, "같은 번호로 다른 내용", client_id).status_code == 409
@@ -323,8 +354,10 @@ def test_chat_never_changes_game_answer_attempts_timer_or_ranking(runtime):
         assert submit(other, day, "사과").status_code == 200
         state_before = client.get("/api/state").json()
         with db.connect() as conn:
-            records_before = {table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-                              for table in ("puzzles", "games", "guesses")}
+            records_before = {
+                table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+                for table in ("puzzles", "games", "guesses")
+            }
         assert send(client, GLOBAL, "게임과 별개의 대화").status_code == 200
         direct_room = direct(client, target["user"]["id"])
         assert send(other, direct_room["id"], "개인 대화").status_code == 200
@@ -333,8 +366,10 @@ def test_chat_never_changes_game_answer_attempts_timer_or_ranking(runtime):
         assert send(other, group_room["id"], "방 대화").status_code == 200
         assert client.get("/api/state").json() == state_before
         with db.connect() as conn:
-            records_after = {table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-                             for table in ("puzzles", "games", "guesses")}
+            records_after = {
+                table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+                for table in ("puzzles", "games", "guesses")
+            }
         assert records_after == records_before
 
 
@@ -345,26 +380,45 @@ def test_chat_rejects_cross_origin_requests_including_sse(runtime, monkeypatch):
         for headers in ({"origin": "https://another.example"}, {"sec-fetch-site": "cross-site"}):
             response = client.get(f"{PREFIX}/{path}", headers=headers)
             assert response.status_code == 403, (path, response.text)
-    rejected = client.post(f"{PREFIX}/rooms/{GLOBAL}/messages", json={
-        "body": "외부 전송", "client_id": str(uuid4()),
-    }, headers={"origin": "https://another.example"})
+    rejected = client.post(
+        f"{PREFIX}/rooms/{GLOBAL}/messages",
+        json={
+            "body": "외부 전송",
+            "client_id": str(uuid4()),
+        },
+        headers={"origin": "https://another.example"},
+    )
     assert rejected.status_code == 403
-    accepted = client.post(f"{PREFIX}/rooms/{GLOBAL}/messages", json={
-        "body": "같은 출처 전송", "client_id": str(uuid4()),
-    }, headers={"origin": "http://testserver"})
+    accepted = client.post(
+        f"{PREFIX}/rooms/{GLOBAL}/messages",
+        json={
+            "body": "같은 출처 전송",
+            "client_id": str(uuid4()),
+        },
+        headers={"origin": "http://testserver"},
+    )
     assert accepted.status_code == 200, accepted.text
     monkeypatch.setenv("APP_ORIGIN", "https://ganmantle.example")
     assert client.get(f"{PREFIX}/rooms", headers={"origin": "http://testserver"}).status_code == 403
-    assert client.get(f"{PREFIX}/rooms", headers={"origin": "https://ganmantle.example"}).status_code == 200
+    assert (
+        client.get(f"{PREFIX}/rooms", headers={"origin": "https://ganmantle.example"}).status_code
+        == 200
+    )
 
     # 정상 SSE를 열면 테스트가 끝나지 않으므로 허용 출처의 미들웨어 통과만 별도 검사합니다.
     async def allowed_sse_passes_middleware():
         called = []
-        request = Request({
-            "type": "http", "method": "GET", "path": f"{PREFIX}/events",
-            "scheme": "https", "server": ("ganmantle.example", 443),
-            "query_string": b"", "headers": [(b"origin", b"https://ganmantle.example")],
-        })
+        request = Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": f"{PREFIX}/events",
+                "scheme": "https",
+                "server": ("ganmantle.example", 443),
+                "query_string": b"",
+                "headers": [(b"origin", b"https://ganmantle.example")],
+            }
+        )
 
         async def next_handler(received):
             called.append(received.url.path)

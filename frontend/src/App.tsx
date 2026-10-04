@@ -15,6 +15,7 @@ import ChatPanel from './chat/ChatPanel';
 import type { ChatUser } from './chat/api';
 
 const DATE_KEY = 'ganmantle:last-puzzle-date';
+
 function savedDate(): string | null {
   try {
     return localStorage.getItem(DATE_KEY);
@@ -22,14 +23,26 @@ function savedDate(): string | null {
     return null;
   }
 }
+
+function requestState(puzzleDate: string | null): Promise<State> {
+  const query = puzzleDate ? `?puzzle_date=${encodeURIComponent(puzzleDate)}` : '';
+  return request(`/state${query}`);
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : '서버에 연결할 수 없어요. 다시 시도해 주세요.';
 }
+
 // 한글 조합을 확정하는 Enter가 곧바로 폼 제출로 이어지지 않게 한다.
 function keepImeInput(event: KeyboardEvent<HTMLInputElement>) {
-  if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229))
+  if (
+    event.key === 'Enter' &&
+    (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
+  ) {
     event.preventDefault();
+  }
 }
+
 export default function App() {
   const [state, setState] = useState<State | null>(null);
   const [chatContact, setChatContact] = useState<ChatUser | null>(null);
@@ -76,9 +89,8 @@ export default function App() {
     }
     refreshing.current = true;
     const requestRevision = ++revision.current;
-    const date = dateHint.current;
     try {
-      const next = await request(`/state${date ? `?puzzle_date=${encodeURIComponent(date)}` : ''}`);
+      const next = await requestState(dateHint.current);
       // 늦게 도착한 조회가 더 최근의 입력 결과를 덮어쓰지 않게 한다.
       if (requestRevision === revision.current && !mutating.current) {
         accept(next);
@@ -169,16 +181,16 @@ export default function App() {
         focusAfterReject.current = true;
       } else {
         // 날짜가 바뀐 경우에는 별도 배너 없이 새 문제를 불러옵니다.
-        if (!(cause instanceof ApiError && cause.code === 'date_changed'))
+        if (!(cause instanceof ApiError && cause.code === 'date_changed')) {
           setError(errorMessage(cause));
+        }
         // 응답을 놓쳤어도 서버가 처리했을 수 있다. 다시 조회하여 저장된 결과를 확인한다.
         reconcile = true;
       }
     } finally {
       if (reconcile) {
-        const date = dateHint.current;
         try {
-          accept(await request(`/state${date ? `?puzzle_date=${encodeURIComponent(date)}` : ''}`));
+          accept(await requestState(dateHint.current));
         } catch {
           /* 원래 오류를 유지하고 다음 재접속에서 다시 조회한다. */
         }
@@ -194,11 +206,14 @@ export default function App() {
     event.preventDefault();
     await mutate('/users', { nickname: nickname.trim().normalize('NFC') });
   }
+
   async function start() {
     if (!state) return;
-    if (await mutate('/start', { puzzle_date: state.puzzle_date }))
+    if (await mutate('/start', { puzzle_date: state.puzzle_date })) {
       requestAnimationFrame(() => input.current?.focus());
+    }
   }
+
   async function guess(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!state || !word.trim() || dateDue || busy) return;

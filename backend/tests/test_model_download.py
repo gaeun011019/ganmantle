@@ -2,6 +2,7 @@
 
 실제 네트워크와 models/ 파일은 사용하지 않습니다.
 """
+
 import hashlib
 import importlib.util
 import io
@@ -21,6 +22,7 @@ URL = "https://example.invalid/model.bin"
 
 class Response:
     """urllib의 상태·헤더·스트림만 흉내 내는 검사 응답입니다."""
+
     def __init__(self, payload, status=200, headers=None, fail_after=None):
         self.status = status
         self.headers = headers if headers is not None else {"Content-Length": str(len(payload))}
@@ -47,7 +49,11 @@ def files(tmp_path):
     path = tmp_path / "model.bin"
     path.write_bytes(b"previous model")
     partial = path.with_suffix(".bin.partial")
-    item = {"path": "model.bin", "size": len(PAYLOAD), "sha256": hashlib.sha256(PAYLOAD).hexdigest()}
+    item = {
+        "path": "model.bin",
+        "size": len(PAYLOAD),
+        "sha256": hashlib.sha256(PAYLOAD).hexdigest(),
+    }
     return path, partial, item
 
 
@@ -79,8 +85,10 @@ def test_fresh_download_checks_digest_before_replacing_previous_file(files, monk
 def test_exact_206_range_resumes_partial_file(files, monkeypatch):
     path, partial, item = files
     partial.write_bytes(PAYLOAD[:3])
-    requests = connect(monkeypatch, Response(PAYLOAD[3:], 206,
-                       {"Content-Range": "bytes 3-5/6", "Content-Length": "3"}))
+    requests = connect(
+        monkeypatch,
+        Response(PAYLOAD[3:], 206, {"Content-Range": "bytes 3-5/6", "Content-Length": "3"}),
+    )
     prepare.download(path, item, URL)
     assert requests[0].get_header("Range") == "bytes=3-"
     assert path.read_bytes() == PAYLOAD
@@ -97,21 +105,38 @@ def test_server_ignoring_range_with_200_restarts_instead_of_appending(files, mon
     assert not partial.exists()
 
 
-@pytest.mark.parametrize("status,overrides", [
-    (206, {"Content-Range": None}),
-    (206, {"Content-Range": "bytes 2-5/6"}),
-    (206, {"Content-Range": "bytes 3-4/6"}),
-    (206, {"Content-Range": "bytes 3-5/7"}),
-    (206, {"Content-Range": "bytes 3-5/*"}),
-    (206, {"Content-Length": "4"}),
-    (206, {"Content-Length": "invalid"}),
-    (206, {"Content-Encoding": "gzip"}),
-    (200, {}),
-    (200, {"Content-Range": None}),
-    (201, {}),
-], ids=["missing-range", "wrong-start", "wrong-end", "wrong-total", "unknown-total",
-        "wrong-length", "invalid-length", "compressed", "range-on-200", "short-200", "wrong-status"])
-def test_invalid_headers_preserve_both_partial_and_previous_file(files, monkeypatch, status, overrides):
+@pytest.mark.parametrize(
+    "status,overrides",
+    [
+        (206, {"Content-Range": None}),
+        (206, {"Content-Range": "bytes 2-5/6"}),
+        (206, {"Content-Range": "bytes 3-4/6"}),
+        (206, {"Content-Range": "bytes 3-5/7"}),
+        (206, {"Content-Range": "bytes 3-5/*"}),
+        (206, {"Content-Length": "4"}),
+        (206, {"Content-Length": "invalid"}),
+        (206, {"Content-Encoding": "gzip"}),
+        (200, {}),
+        (200, {"Content-Range": None}),
+        (201, {}),
+    ],
+    ids=[
+        "missing-range",
+        "wrong-start",
+        "wrong-end",
+        "wrong-total",
+        "unknown-total",
+        "wrong-length",
+        "invalid-length",
+        "compressed",
+        "range-on-200",
+        "short-200",
+        "wrong-status",
+    ],
+)
+def test_invalid_headers_preserve_both_partial_and_previous_file(
+    files, monkeypatch, status, overrides
+):
     path, partial, item = files
     partial.write_bytes(PAYLOAD[:3])
     headers = {"Content-Range": "bytes 3-5/6", "Content-Length": "3", **overrides}
@@ -125,8 +150,11 @@ def test_invalid_headers_preserve_both_partial_and_previous_file(files, monkeypa
 
 def test_connection_failure_keeps_received_bytes_and_next_run_resumes(files, monkeypatch, capsys):
     path, partial, item = files
-    requests = connect(monkeypatch, Response(PAYLOAD, fail_after=3),
-                       Response(PAYLOAD[3:], 206, {"Content-Range": "bytes 3-5/6"}))
+    requests = connect(
+        monkeypatch,
+        Response(PAYLOAD, fail_after=3),
+        Response(PAYLOAD[3:], 206, {"Content-Range": "bytes 3-5/6"}),
+    )
     with pytest.raises(OSError):
         prepare.download(path, item, URL)
     assert partial.read_bytes() == PAYLOAD[:3]
@@ -174,8 +202,10 @@ def test_truncated_response_keeps_partial_without_replacing_old_file(files, monk
 def test_oversized_response_is_not_appended_beyond_manifest_size(files, monkeypatch):
     path, partial, item = files
     partial.write_bytes(PAYLOAD[:3])
-    connect(monkeypatch, Response(PAYLOAD[3:] + b"x", 206,
-                                {"Content-Range": "bytes 3-5/6", "Content-Length": "3"}))
+    connect(
+        monkeypatch,
+        Response(PAYLOAD[3:] + b"x", 206, {"Content-Range": "bytes 3-5/6", "Content-Length": "3"}),
+    )
     with pytest.raises(prepare.DownloadError, match="크기를 초과"):
         prepare.download(path, item, URL)
     assert partial.read_bytes() == PAYLOAD[:3]
@@ -194,14 +224,26 @@ def test_oversized_existing_partial_restarts_at_zero(files, monkeypatch):
 
 def arguments(monkeypatch, tmp_path, item, *extra):
     manifest = tmp_path / "manifest.json"
-    manifest.write_text(json.dumps({"model_id": "example/model", "revision": "fixed-version",
-                                    "algorithm": "fasttext-bin-subword-mean-l2-cosine100-v1",
-                                    "directory": "unused", "files": [item]}), encoding="utf-8")
-    monkeypatch.setattr("sys.argv", [str(SCRIPT), "--manifest", str(manifest),
-                                    "--directory", str(tmp_path), *extra])
+    manifest.write_text(
+        json.dumps(
+            {
+                "model_id": "example/model",
+                "revision": "fixed-version",
+                "algorithm": "fasttext-bin-subword-mean-l2-cosine100-v1",
+                "directory": "unused",
+                "files": [item],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sys.argv", [str(SCRIPT), "--manifest", str(manifest), "--directory", str(tmp_path), *extra]
+    )
 
 
-def test_check_mode_uses_manifest_and_never_downloads_or_changes_partial(files, monkeypatch, tmp_path):
+def test_check_mode_uses_manifest_and_never_downloads_or_changes_partial(
+    files, monkeypatch, tmp_path
+):
     path, partial, item = files
     path.write_bytes(PAYLOAD)
     partial.write_bytes(b"unfinished")

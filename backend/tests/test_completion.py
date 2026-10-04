@@ -3,6 +3,7 @@
 점수는 규칙용 모형/합성 벡터입니다. 운영 모델 품질 검사와 구분합니다.
 runtime이 만든 임시 스키마만 사용하며 기존 게임 기록은 수정하지 않습니다.
 """
+
 from datetime import UTC, date, datetime
 from unittest.mock import Mock
 
@@ -46,7 +47,9 @@ def test_unregistered_and_unfinished_players_cannot_query_related_words(runtime,
         rankings.assert_not_called()
 
 
-def test_related_words_use_same_scores_ranks_and_references_and_do_not_expose_answer(runtime, monkeypatch):
+def test_related_words_use_same_scores_ranks_and_references_and_do_not_expose_answer(
+    runtime, monkeypatch
+):
     client, _, engine = runtime
     day, _ = begin(client)
     submit(client, day, "사과")
@@ -115,7 +118,9 @@ def test_related_words_model_failures_never_return_partial_words(runtime, monkey
     elif fault == "fingerprint":
         engine.fingerprint = "TEST ONLY: changed fingerprint"
     else:
-        monkeypatch.setattr(engine, "rankings", Mock(side_effect=ModelUnavailableError("사과 비공개 오류")))
+        monkeypatch.setattr(
+            engine, "rankings", Mock(side_effect=ModelUnavailableError("사과 비공개 오류"))
+        )
     response = related(client, day)
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "model_unavailable"
@@ -162,9 +167,12 @@ def test_player_stats_use_own_saved_history_and_duplicates_do_not_count(runtime)
     submit(client, day, "산책")
     completed = submit(client, day, "사과").json()
     expected = {
-        "first_played_date": "2026-09-16", "games_played": 4,
-        "games_completed": 3, "current_streak": 2,
-        "games_incomplete": 1, "total_guesses": 6,
+        "first_played_date": "2026-09-16",
+        "games_played": 4,
+        "games_completed": 3,
+        "current_streak": 2,
+        "games_incomplete": 1,
+        "total_guesses": 6,
     }
     assert completed["player_stats"] == expected
     duplicate = submit(client, day, "산책").json()
@@ -185,11 +193,14 @@ def test_player_stats_use_own_saved_history_and_duplicates_do_not_count(runtime)
         assert visitor.get("/api/state").json()["player_stats"] is None
 
 
-@pytest.mark.parametrize("days,streak", [
-    (["2025-12-31", "2026-01-01"], 2),
-    (["2024-02-28", "2024-02-29", "2024-03-01"], 3),
-    (["2026-09-16", "2026-09-18", "2026-09-19"], 2),
-])
+@pytest.mark.parametrize(
+    "days,streak",
+    [
+        (["2025-12-31", "2026-01-01"], 2),
+        (["2024-02-28", "2024-02-29", "2024-03-01"], 3),
+        (["2026-09-16", "2026-09-18", "2026-09-19"], 2),
+    ],
+)
 def test_streak_uses_consecutive_korean_calendar_dates(runtime, days, streak):
     client, clock, _ = runtime
     for day in days:
@@ -207,8 +218,12 @@ def test_first_game_completion_stats_and_next_day_are_not_carried_over(runtime):
     day, _ = begin(client)
     completed = submit(client, day, "사과").json()
     assert completed["player_stats"] == {
-        "first_played_date": day, "games_played": 1, "games_completed": 1,
-        "current_streak": 1, "games_incomplete": 0, "total_guesses": 1,
+        "first_played_date": day,
+        "games_played": 1,
+        "games_completed": 1,
+        "current_streak": 1,
+        "games_incomplete": 0,
+        "total_guesses": 1,
     }
     clock["now"] = datetime(2026, 9, 19, 15, 0, 0, tzinfo=UTC)
     state = client.get("/api/state").json()

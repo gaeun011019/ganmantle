@@ -3,6 +3,7 @@
 점수는 기존 규칙 테스트의 모형을 사용합니다. 실제 모델 품질 검사는 별도입니다.
 각 검사는 runtime이 만든 임시 스키마만 사용하고 종료 후 제거합니다.
 """
+
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -62,7 +63,11 @@ def test_separate_playing_omit_unstarted_and_expose_only_public_fields(runtime):
     client, clock, _ = runtime
     assert ranking(client) == {"completed": [], "playing": []}
     day, _ = begin(client, "완료사용자")
-    with TestClient(main.app) as playing, TestClient(main.app) as unstarted, TestClient(main.app) as visitor:
+    with (
+        TestClient(main.app) as playing,
+        TestClient(main.app) as unstarted,
+        TestClient(main.app) as visitor,
+    ):
         _, started = begin(playing, "진행사용자")
         assert started["ranking"]["playing"][-1]["rank"] is None
         assert all(row["best_similarity"] is None for row in started["ranking"]["playing"])
@@ -82,11 +87,25 @@ def test_separate_playing_omit_unstarted_and_expose_only_public_fields(runtime):
         assert result["playing"][0]["rank"] is None
         assert result["playing"][0]["best_similarity"] == 23.4567
         assert result["completed"][0]["best_similarity"] == 100.0
-        allowed = {"user_id", "nickname", "attempts", "elapsed_ms", "rank", "is_me", "best_similarity", "best_similarity_rank"}
+        allowed = {
+            "user_id",
+            "nickname",
+            "attempts",
+            "elapsed_ms",
+            "rank",
+            "is_me",
+            "best_similarity",
+            "best_similarity_rank",
+        }
         for row in result["completed"] + result["playing"]:
             assert set(row) == allowed
             assert row["is_me"] is False
-        for private_value in ("모니터", "사과", client.cookies["ganmantle_session"], playing.cookies["ganmantle_session"]):
+        for private_value in (
+            "모니터",
+            "사과",
+            client.cookies["ganmantle_session"],
+            playing.cookies["ganmantle_session"],
+        ):
             assert private_value not in response.text
         assert "session_hash" not in response.text
         assert "answer" not in state
@@ -169,15 +188,26 @@ def test_midnight_clears_todays_ranking_and_preserves_history(runtime):
         assert scalar("SELECT count(*) FROM games WHERE status = 'incomplete'") == 1
         assert scalar("SELECT count(*) FROM games") == 2
         with db.connect() as conn:
-            assert conn.execute("SELECT * FROM games WHERE status = 'completed'").fetchone() == completed
+            assert (
+                conn.execute("SELECT * FROM games WHERE status = 'completed'").fetchone()
+                == completed
+            )
             assert conn.execute("SELECT * FROM guesses ORDER BY id").fetchall() == guesses
 
         fresh = client.post("/api/start", json={"puzzle_date": state["puzzle_date"]}).json()
         assert fresh["ranking"]["completed"] == []
-        assert fresh["ranking"]["playing"] == [{
-            "user_id": original["user"]["id"], "nickname": "자정진행", "attempts": 0,
-            "elapsed_ms": None, "rank": None, "is_me": True, "best_similarity": None, "best_similarity_rank": None,
-        }]
+        assert fresh["ranking"]["playing"] == [
+            {
+                "user_id": original["user"]["id"],
+                "nickname": "자정진행",
+                "attempts": 0,
+                "elapsed_ms": None,
+                "rank": None,
+                "is_me": True,
+                "best_similarity": None,
+                "best_similarity_rank": None,
+            }
+        ]
         assert scalar("SELECT count(*) FROM games") == 3
 
 
@@ -205,6 +235,7 @@ def test_duplicate_after_completion_never_changes_rank_attempts_or_finish_time(r
         assert duplicate["game"]["completed_at"] == finished["game"]["completed_at"]
         assert duplicate["game"]["guesses"][0]["word"] == "산책"
         assert scalar("SELECT count(*) FROM guesses") == 3
+
 
 def test_best_similarity_is_raw_max_for_each_game_before_and_after_completion(runtime, monkeypatch):
     client, _, engine = runtime

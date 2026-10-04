@@ -1,4 +1,5 @@
 """실제 작은 파일로 모델 검증 캐시의 재사용·무효화·읽기 전용 동작을 검사합니다."""
+
 import hashlib
 import importlib.util
 import io
@@ -24,8 +25,11 @@ def model(tmp_path):
     payload = b"small original model"
     path = tmp_path / "model.bin"
     path.write_bytes(payload)
-    item = {"path": "model.bin", "size": len(payload),
-            "sha256": hashlib.sha256(payload).hexdigest()}
+    item = {
+        "path": "model.bin",
+        "size": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+    }
     return path, item
 
 
@@ -66,7 +70,9 @@ def test_same_size_changed_content_invalidates_cached_mtime(model, hashes):
     assert hashes == [path, path]
 
 
-@pytest.mark.skipif(os.name == "nt", reason="Windows ctime은 생성 시각이므로 Linux 변경 시각 검사와 다릅니다.")
+@pytest.mark.skipif(
+    os.name == "nt", reason="Windows ctime은 생성 시각이므로 Linux 변경 시각 검사와 다릅니다."
+)
 def test_restoring_mtime_does_not_hide_changed_ctime(model, hashes):
     path, item = model
     assert model_files.verify_file(path, item)
@@ -81,10 +87,17 @@ def test_restoring_mtime_does_not_hide_changed_ctime(model, hashes):
     assert hashes == [path, path]
 
 
-@pytest.mark.parametrize("broken", [
-    b"{", b"\xff", b'{"format":2,"files":{}}', b'{"format":1,"files":[]}',
-    b" " * (64 * 1024 + 1), b"[" * 2000 + b"]" * 2000,
-])
+@pytest.mark.parametrize(
+    "broken",
+    [
+        b"{",
+        b"\xff",
+        b'{"format":2,"files":{}}',
+        b'{"format":1,"files":[]}',
+        b" " * (64 * 1024 + 1),
+        b"[" * 2000 + b"]" * 2000,
+    ],
+)
 def test_missing_or_unreadable_cache_format_falls_back_to_full_sha(model, hashes, broken):
     path, item = model
     cache = path.parent / model_files.CACHE_NAME
@@ -147,8 +160,11 @@ def test_nested_model_paths_share_one_cache_without_absolute_mount_keys(tmp_path
     for path in (flat, nested):
         payload = path.name.encode()
         path.write_bytes(payload)
-        item = {"path": path.relative_to(tmp_path).as_posix(), "size": len(payload),
-                "sha256": hashlib.sha256(payload).hexdigest()}
+        item = {
+            "path": path.relative_to(tmp_path).as_posix(),
+            "size": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
         assert model_files.verify_file(path, item)
         assert model_files.remember_verified(path, item)
         assert model_files.verify_file(path, item)
@@ -200,9 +216,18 @@ def test_optional_cache_write_failure_does_not_accept_bad_model(model, monkeypat
 def test_prepare_existing_file_and_check_mode_both_run_full_sha(model, hashes, monkeypatch, check):
     path, item = model
     manifest = path.parent / "manifest.json"
-    manifest.write_text(json.dumps({"model_id": "test/model", "revision": "fixed",
-                                   "algorithm": "fasttext-bin-subword-mean-l2-cosine100-v1",
-                                   "directory": "unused", "files": [item]}), encoding="utf-8")
+    manifest.write_text(
+        json.dumps(
+            {
+                "model_id": "test/model",
+                "revision": "fixed",
+                "algorithm": "fasttext-bin-subword-mean-l2-cosine100-v1",
+                "directory": "unused",
+                "files": [item],
+            }
+        ),
+        encoding="utf-8",
+    )
     args = [str(SCRIPT), "--manifest", str(manifest), "--directory", str(path.parent)]
     if check:
         args.append("--check")
@@ -212,7 +237,9 @@ def test_prepare_existing_file_and_check_mode_both_run_full_sha(model, hashes, m
     assert (path.parent / model_files.CACHE_NAME).exists() is not check
 
 
-def test_download_publishes_cache_for_final_file_after_full_partial_validation(model, hashes, monkeypatch):
+def test_download_publishes_cache_for_final_file_after_full_partial_validation(
+    model, hashes, monkeypatch
+):
     path, item = model
     payload = path.read_bytes()
     path.write_bytes(b"previous model")
@@ -221,7 +248,9 @@ def test_download_publishes_cache_for_final_file_after_full_partial_validation(m
         status = 200
         headers = {"Content-Length": str(len(payload))}
 
-    monkeypatch.setattr(prepare.urllib.request, "urlopen", lambda *_args, **_kwargs: Response(payload))
+    monkeypatch.setattr(
+        prepare.urllib.request, "urlopen", lambda *_args, **_kwargs: Response(payload)
+    )
     prepare.download(path, item, "https://example.invalid/model.bin")
     assert path.read_bytes() == payload
     assert hashes == [path.with_suffix(".bin.partial")]

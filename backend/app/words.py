@@ -1,4 +1,5 @@
 """한글 입력 형식과 고정 비교 사전. fastText는 형식이 맞는 사전 밖 입력도 허용합니다."""
+
 from functools import lru_cache
 import hashlib
 import json
@@ -26,11 +27,16 @@ def get_words() -> frozenset[str]:
         words = frozenset(content.decode("utf-8").splitlines())
         if not words or len(words) != manifest["output"]["count"]:
             raise ValueError("사전 단어 수 불일치")
-        if any(not HANGUL_WORD.fullmatch(word) or unicodedata.normalize("NFC", word) != word for word in words):
+        if any(
+            not HANGUL_WORD.fullmatch(word) or unicodedata.normalize("NFC", word) != word
+            for word in words
+        ):
             raise ValueError("사전 형식 오류")
         return words
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise WordsUnavailableError("입력 사전을 준비하지 못했어요. 서버의 dictionary 파일을 확인해 주세요.") from exc
+        raise WordsUnavailableError(
+            "입력 사전을 준비하지 못했어요. 서버의 dictionary 파일을 확인해 주세요."
+        ) from exc
 
 
 def is_allowed_word(word: str, *, allow_oov: bool = False) -> bool:

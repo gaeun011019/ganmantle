@@ -3,6 +3,7 @@
 실제 PostgreSQL의 임시 스키마와 규칙용 모델/합성 벡터를 사용합니다.
 운영 DB나 실제 모델 품질 검사를 대신하지 않습니다.
 """
+
 from datetime import UTC, datetime
 from unittest.mock import Mock
 from uuid import uuid4
@@ -96,23 +97,33 @@ def test_history_preserves_first_attempt_order_without_duplicates_and_reconnects
         assert payload["user"] == first["user"]
         assert payload["status"] == "completed" and payload["attempts"] == 4
         assert [row["attempt"] for row in payload["guesses"]] == [1, 2, 3, 4]
-        assert payload["guesses"] == sorted(solved["game"]["guesses"], key=lambda row: row["attempt"])
+        assert payload["guesses"] == sorted(
+            solved["game"]["guesses"], key=lambda row: row["attempt"]
+        )
         assert [row["is_correct"] for row in payload["guesses"]] == [False, False, False, True]
         assert payload["guesses"][-1]["similarity_rank"] == 0
-        assert all(set(row) == {"word", "similarity", "similarity_rank", "attempt", "is_correct"}
-                   for row in payload["guesses"])
+        assert all(
+            set(row) == {"word", "similarity", "similarity_rank", "attempt", "is_correct"}
+            for row in payload["guesses"]
+        )
         assert "키보드" not in response.text
         assert scalar("SELECT count(*) FROM guesses") == 6
         with TestClient(main.app, cookies=dict(client.cookies)) as reconnect:
             assert history(reconnect, target_id, day).json() == payload
         assert history(client, viewer_id, day).json()["attempts"] == 1
-        assert history(client, unrelated["user"]["id"], day).json()["guesses"][0]["word"] == "키보드"
+        assert (
+            history(client, unrelated["user"]["id"], day).json()["guesses"][0]["word"] == "키보드"
+        )
         renamed = friend.post("/api/users", json={"nickname": "친구새닉네임"}).json()
         assert history(client, target_id, day).json()["user"] == renamed["user"]
         # 일반 상태의 랭킹은 완료 여부와 무관하게 추측 단어를 포함하지 않습니다.
         rankings = client.get("/api/state").json()["ranking"]
-        assert all("word" not in key and "guesses" not in key
-                   for group in rankings.values() for row in group for key in row)
+        assert all(
+            "word" not in key and "guesses" not in key
+            for group in rankings.values()
+            for row in group
+            for key in row
+        )
 
 
 @pytest.mark.parametrize("target_kind", ["absent", "not_started", "yesterday_only"])
@@ -121,7 +132,9 @@ def test_target_must_have_a_game_on_the_requested_current_day(runtime, target_ki
     with TestClient(main.app) as friend:
         target_id = str(uuid4())
         if target_kind == "not_started":
-            target_id = friend.post("/api/users", json={"nickname": "미시작친구"}).json()["user"]["id"]
+            target_id = friend.post("/api/users", json={"nickname": "미시작친구"}).json()["user"][
+                "id"
+            ]
         elif target_kind == "yesterday_only":
             clock["now"] = datetime(2026, 9, 18, 2, 0, tzinfo=UTC)
             _, target_id = complete(friend, "전날참가친구")
@@ -134,7 +147,9 @@ def test_target_must_have_a_game_on_the_requested_current_day(runtime, target_ki
 
 
 @pytest.mark.parametrize("requested_day", ["2026-09-18", "2026-09-20"])
-def test_history_rejects_other_dates_before_target_or_model_lookup(runtime, monkeypatch, requested_day):
+def test_history_rejects_other_dates_before_target_or_model_lookup(
+    runtime, monkeypatch, requested_day
+):
     client, _, engine = runtime
     _, target_id = complete(client)
     rankings = Mock(side_effect=AssertionError("다른 날짜 모델 조회 금지"))
@@ -145,7 +160,9 @@ def test_history_rejects_other_dates_before_target_or_model_lookup(runtime, monk
     rankings.assert_not_called()
     conn = Mock()
     with pytest.raises(game.GameError):
-        game.friend_history(conn, {"id": uuid4()}, uuid4(), datetime.fromisoformat(requested_day).date(), engine)
+        game.friend_history(
+            conn, {"id": uuid4()}, uuid4(), datetime.fromisoformat(requested_day).date(), engine
+        )
     conn.execute.assert_not_called()
 
 
@@ -161,7 +178,9 @@ def test_history_validates_uuid_date_and_session(runtime):
 
 
 @pytest.mark.parametrize("fault", ["unready", "fingerprint", "rankings"])
-def test_history_never_mixes_existing_scores_with_an_unavailable_or_changed_model(runtime, monkeypatch, fault):
+def test_history_never_mixes_existing_scores_with_an_unavailable_or_changed_model(
+    runtime, monkeypatch, fault
+):
     client, _, engine = runtime
     day, target_id = complete(client)
     if fault == "unready":
@@ -169,7 +188,9 @@ def test_history_never_mixes_existing_scores_with_an_unavailable_or_changed_mode
     elif fault == "fingerprint":
         engine.fingerprint = "TEST ONLY: changed fingerprint"
     else:
-        monkeypatch.setattr(engine, "rankings", Mock(side_effect=ModelUnavailableError("비공개 사과")))
+        monkeypatch.setattr(
+            engine, "rankings", Mock(side_effect=ModelUnavailableError("비공개 사과"))
+        )
     response = history(client, target_id, day)
     assert response.status_code == 503
     assert response.json()["detail"]["code"] == "model_unavailable"
@@ -206,7 +227,9 @@ def test_history_matches_current_index_scores_and_oov_tie_ranks(runtime, monkeyp
             assert row["similarity"] == score(row["word"], "사과")
             assert row["similarity_rank"] == rank_for_score(indexed, row["word"], row["similarity"])
         assert [row["similarity_rank"] for row in rows[:3]] == [1, 1, 1]
-        assert rows[0]["similarity"] == client.get("/api/state").json()["similarity_reference"]["top1"]
+        assert (
+            rows[0]["similarity"] == client.get("/api/state").json()["similarity_reference"]["top1"]
+        )
         assert rows == sorted(saved.json()["game"]["guesses"], key=lambda row: row["attempt"])
 
 

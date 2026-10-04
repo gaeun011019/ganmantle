@@ -1,4 +1,5 @@
 """작은 직접 생성 .bin으로 형식·subword 규칙을 확인합니다(실모델 품질 검사 아님)."""
+
 from contextlib import closing
 import struct
 
@@ -36,9 +37,15 @@ def write_binary(tmp_path, *, words=("가", "</s>"), bucket=17, minn=3, maxn=6, 
     return path, data, matrix, positions
 
 
-@pytest.mark.parametrize(("word", "expected"), [
-    ("hello", 1335831723), ("한글", 2522324609), ("<가>", 2790065039), ("가나", 966334256),
-])
+@pytest.mark.parametrize(
+    ("word", "expected"),
+    [
+        ("hello", 1335831723),
+        ("한글", 2522324609),
+        ("<가>", 2790065039),
+        ("가나", 966334256),
+    ],
+)
 def test_hash_uses_signed_utf8_bytes(word, expected):
     assert _hash(word.encode("utf-8")) == expected
     # '한글'에 unsigned-byte FNV를 쓰면 3865498753으로 달라집니다.
@@ -98,11 +105,19 @@ def test_short_oov_without_ngrams_is_not_a_fake_zero_score(tmp_path):
             model.get_word_vector("나")
 
 
-@pytest.mark.parametrize("value, expected_error", [
-    (0, FastTextVectorError), (np.nan, FastTextFormatError),
-    (np.inf, FastTextFormatError), (np.finfo(np.float32).max, FastTextFormatError),
-], ids=["zero-input-error", "nan-model-error", "infinity-model-error", "overflow-model-error"])
-def test_only_zero_is_input_error_while_nonfinite_and_overflow_are_model_errors(tmp_path, value, expected_error):
+@pytest.mark.parametrize(
+    "value, expected_error",
+    [
+        (0, FastTextVectorError),
+        (np.nan, FastTextFormatError),
+        (np.inf, FastTextFormatError),
+        (np.finfo(np.float32).max, FastTextFormatError),
+    ],
+    ids=["zero-input-error", "nan-model-error", "infinity-model-error", "overflow-model-error"],
+)
+def test_only_zero_is_input_error_while_nonfinite_and_overflow_are_model_errors(
+    tmp_path, value, expected_error
+):
     matrix = np.full((19, 3), value, dtype=np.float32)
     path, _, _, _ = write_binary(tmp_path, matrix=matrix)
     with closing(FastTextBin(path)) as model:
@@ -118,21 +133,47 @@ def test_invalid_vector_input(tmp_path, word):
             model.get_word_vector(word)
 
 
-@pytest.mark.parametrize(("field", "fmt", "value"), [
-    ("magic", "<i", 1), ("version", "<i", 11), ("dimension", "<i", 0),
-    ("model", "<i", 3), ("bucket", "<i", 0), ("minn", "<i", 9),
-    ("loss", "<i", 99), ("sampling", "<d", np.nan),
-    ("nwords", "<i", 1), ("nlabels", "<i", 1), ("ntokens", "<q", -1),
-    ("pruned", "<q", 0), ("input_flag", "<B", 1), ("output_flag", "<B", 1),
-    ("input_shape", "<q", 20), ("input_columns", "<q", 4),
-    ("output_shape", "<q", 3), ("output_columns", "<q", 4),
-])
+@pytest.mark.parametrize(
+    ("field", "fmt", "value"),
+    [
+        ("magic", "<i", 1),
+        ("version", "<i", 11),
+        ("dimension", "<i", 0),
+        ("model", "<i", 3),
+        ("bucket", "<i", 0),
+        ("minn", "<i", 9),
+        ("loss", "<i", 99),
+        ("sampling", "<d", np.nan),
+        ("nwords", "<i", 1),
+        ("nlabels", "<i", 1),
+        ("ntokens", "<q", -1),
+        ("pruned", "<q", 0),
+        ("input_flag", "<B", 1),
+        ("output_flag", "<B", 1),
+        ("input_shape", "<q", 20),
+        ("input_columns", "<q", 4),
+        ("output_shape", "<q", 3),
+        ("output_columns", "<q", 4),
+    ],
+)
 def test_invalid_or_unsupported_file_fields(tmp_path, field, fmt, value):
     path, data, _, offsets = write_binary(tmp_path)
-    offsets.update(magic=0, version=4, dimension=8, model=36, bucket=40, minn=44,
-                   loss=32, sampling=56, nwords=68, nlabels=72, ntokens=76, pruned=84,
-                   input_columns=offsets["input_shape"] + 8,
-                   output_columns=offsets["output_shape"] + 8)
+    offsets.update(
+        magic=0,
+        version=4,
+        dimension=8,
+        model=36,
+        bucket=40,
+        minn=44,
+        loss=32,
+        sampling=56,
+        nwords=68,
+        nlabels=72,
+        ntokens=76,
+        pruned=84,
+        input_columns=offsets["input_shape"] + 8,
+        output_columns=offsets["output_shape"] + 8,
+    )
     struct.pack_into(fmt, data, offsets[field], value)
     path.write_bytes(data)
     with pytest.raises(FastTextFormatError):
@@ -142,9 +183,14 @@ def test_invalid_or_unsupported_file_fields(tmp_path, field, fmt, value):
 @pytest.mark.parametrize("change", ["empty", "header", "dictionary", "input", "output", "trailing"])
 def test_truncation_and_trailing_bytes(tmp_path, change):
     path, data, _, offsets = write_binary(tmp_path)
-    cuts = {"empty": 0, "header": 7, "dictionary": 94,
-            "input": offsets["input_data"] + 5, "output": len(data) - 1}
-    path.write_bytes(data + b"unexpected" if change == "trailing" else data[:cuts[change]])
+    cuts = {
+        "empty": 0,
+        "header": 7,
+        "dictionary": 94,
+        "input": offsets["input_data"] + 5,
+        "output": len(data) - 1,
+    }
+    path.write_bytes(data + b"unexpected" if change == "trailing" else data[: cuts[change]])
     with pytest.raises(FastTextFormatError):
         FastTextBin(path)
 
@@ -166,7 +212,9 @@ def test_dictionary_preserves_non_utf8_bytes_without_changing_word_ids(tmp_path)
 
 @pytest.mark.parametrize("change", ["duplicate", "empty", "entry_type", "negative_count"])
 def test_invalid_dictionary_entries(tmp_path, change):
-    path, data, _, _ = write_binary(tmp_path, words=("가", "가") if change == "duplicate" else ("가", "</s>"))
+    path, data, _, _ = write_binary(
+        tmp_path, words=("가", "가") if change == "duplicate" else ("가", "</s>")
+    )
     if change == "empty":
         data[92] = 0
     elif change == "entry_type":

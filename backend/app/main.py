@@ -1,4 +1,5 @@
 """간맨틀 FastAPI 시작점. API와 빌드된 React 화면을 한 서버에서 제공합니다."""
+
 import asyncio
 import contextlib
 import logging
@@ -52,16 +53,35 @@ async def lifespan(application: FastAPI):
             await maintenance
 
 
-app = FastAPI(title="간맨틀", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+app = FastAPI(
+    title="간맨틀",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url=None,
+)
 
 
 @app.middleware("http")
 async def protect_origin(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
         origin = request.headers.get("origin")
-        allowed = os.getenv("APP_ORIGIN", "").rstrip("/") or f"{request.url.scheme}://{request.url.netloc}"
-        if (origin and origin.rstrip("/") != allowed) or request.headers.get("sec-fetch-site") == "cross-site":
-            return JSONResponse(status_code=403, content={"detail": {"code": "invalid_origin", "message": "이 주소에서의 요청은 허용하지 않아요."}})
+        allowed = (
+            os.getenv("APP_ORIGIN", "").rstrip("/")
+            or f"{request.url.scheme}://{request.url.netloc}"
+        )
+        if (origin and origin.rstrip("/") != allowed) or request.headers.get(
+            "sec-fetch-site"
+        ) == "cross-site":
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": {
+                        "code": "invalid_origin",
+                        "message": "이 주소에서의 요청은 허용하지 않아요.",
+                    }
+                },
+            )
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "same-origin"
@@ -72,7 +92,15 @@ async def protect_origin(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def invalid_request(request: Request, exc: RequestValidationError):
-    return JSONResponse(status_code=422, content={"detail": {"code": "invalid_request", "message": "입력 형식이 맞지 않아요. 페이지를 새로고침한 뒤 다시 시도해 주세요."}})
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": {
+                "code": "invalid_request",
+                "message": "입력 형식이 맞지 않아요. 페이지를 새로고침한 뒤 다시 시도해 주세요.",
+            }
+        },
+    )
 
 
 class NicknameInput(BaseModel):
@@ -102,20 +130,30 @@ def health(request: Request):
     try:
         with db.connect() as conn:
             # 조회만 하며 문제나 사용자를 만들지 않습니다.
-            model = game.model_status(conn, game.puzzle_date(game.utcnow()), current_engine(request))
+            model = game.model_status(
+                conn, game.puzzle_date(game.utcnow()), current_engine(request)
+            )
     except DatabaseError as error:
         # 연결 문자열이나 SQL 오류 본문 대신 예외 타입만 기록합니다.
         logger.error("상태 검사 중 DB 확인 실패 (%s)", type(error).__name__)
-        return JSONResponse(status_code=503, content={
-            "status": "database_unavailable", "database": False,
-            "message": "데이터베이스 상태를 확인하지 못했어요.",
-        })
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "database_unavailable",
+                "database": False,
+                "message": "데이터베이스 상태를 확인하지 못했어요.",
+            },
+        )
     if not model["ready"]:
         # Docker도 HTTP 상태로 게임 준비 실패를 감지합니다. 내부 경로는 공개하지 않습니다.
-        return JSONResponse(status_code=503, content={
-            "status": "model_unavailable", "database": True,
-            "model": {**model, "error": "유사도 모델을 사용할 준비가 되지 않았어요."},
-        })
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "model_unavailable",
+                "database": True,
+                "model": {**model, "error": "유사도 모델을 사용할 준비가 되지 않았어요."},
+            },
+        )
     return {"status": "ok", "database": True, "model": model}
 
 
@@ -130,11 +168,20 @@ def state(request: Request, puzzle_date: date | None = None):
 def set_nickname(payload: NicknameInput, request: Request, response: Response):
     try:
         with db.connect() as conn:
-            user, new_token = users.register(conn, payload.nickname, request.cookies.get(users.COOKIE_NAME))
+            user, new_token = users.register(
+                conn, payload.nickname, request.cookies.get(users.COOKIE_NAME)
+            )
             result = game.state(conn, user, current_engine(request))
         if new_token:
-            response.set_cookie(users.COOKIE_NAME, new_token, max_age=users.COOKIE_MAX_AGE,
-                                httponly=True, samesite="lax", secure=os.getenv("COOKIE_SECURE", "false").lower() == "true", path="/")
+            response.set_cookie(
+                users.COOKIE_NAME,
+                new_token,
+                max_age=users.COOKIE_MAX_AGE,
+                httponly=True,
+                samesite="lax",
+                secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
+                path="/",
+            )
         return result
     except users.UserError as error:
         fail(error)
@@ -159,6 +206,7 @@ def friend_history(user_id: UUID, request: Request, puzzle_date: date):
     except users.UserError as error:
         fail(error)
 
+
 def mutate(request: Request, operation, expected: date):
     error = None
     result = None
@@ -182,18 +230,30 @@ def mutate(request: Request, operation, expected: date):
 
 @app.post("/api/start")
 def start(payload: StartInput, request: Request):
-    return mutate(request, lambda conn, user, engine: game.start(conn, user, payload.puzzle_date, engine), payload.puzzle_date)
+    return mutate(
+        request,
+        lambda conn, user, engine: game.start(conn, user, payload.puzzle_date, engine),
+        payload.puzzle_date,
+    )
 
 
 @app.post("/api/guesses")
 def guess(payload: GuessInput, request: Request):
     submitted_at = game.utcnow()
-    return mutate(request, lambda conn, user, engine: game.guess(conn, user, payload.puzzle_date, payload.word, engine, submitted_at), payload.puzzle_date)
+    return mutate(
+        request,
+        lambda conn, user, engine: game.guess(
+            conn, user, payload.puzzle_date, payload.word, engine, submitted_at
+        ),
+        payload.puzzle_date,
+    )
 
 
 app.include_router(chat_router)
 
 # Docker에서는 화면을 먼저 빌드합니다. 개발 시 Vite가 /api 요청을 이 서버로 보냅니다.
-frontend_dist = Path(os.getenv("FRONTEND_DIST", str(Path(__file__).resolve().parents[2] / "frontend" / "dist")))
+frontend_dist = Path(
+    os.getenv("FRONTEND_DIST", str(Path(__file__).resolve().parents[2] / "frontend" / "dist"))
+)
 if frontend_dist.is_dir():
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")

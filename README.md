@@ -4,9 +4,15 @@
 
 **로컬 주소: http://localhost:8000** · 친구에게 잠깐 보여줄 때는 [ngrok 공유 안내](docs/DEPLOYMENT.md)를 사용합니다. 별도 서버를 구매하지 않아도 되며 공유하는 동안 내 컴퓨터와 Docker를 켜 두어야 합니다.
 
+**맥에서 시작하려면 [Mac 실행·관리 안내](docs/MAC.md)를 따라가세요.** 플레이만 할 때는 기존 공유 링크를 열면 됩니다. 맥에서 서버도 운영하려면 Docker를 설치하고 프로젝트 폴더에서 `sh scripts/manage.sh setup`을 실행합니다. 현재 Windows 기록을 옮기는 방법과 ngrok 전환 절차도 안내에 포함했습니다.
+
 **2026-09-27:** 불필요 코드·중복 모델 정리와 전체 기록 초기화, 로컬 검사를 완료했습니다. [GitHub `main`](https://github.com/gaeun011019/ganmantle)에 업로드했고 최초 코드 커밋의 자동 검사도 통과했습니다. 실제 결과는 [9월 26~27일 변경 기록](CHANGELOG/2026-09/26-001-cleanup-share-github.md)에 남깁니다. 실제 Mac/Apple Silicon·Safari·공개 HTTPS 연결은 아직 확인하지 않았습니다. 이전 검사 결과는 [검증 기록](docs/VALIDATION.md)에서 날짜별로 구분합니다.
 
-**최신 로컬 변경 (2026-09-27):** 정답 완료 상자·내 통계·상위 1,000개 단어 링크와 정답 후 친구 추측 기록 열람을 추가했습니다. 백엔드 288개·Chrome 화면 33개·실제 모델 통합 8개 묶음을 확인했습니다. [GitHub 반영 범위](CHANGELOG/2026-09/27-004-github-update.md). [변경 파일과 검증 결과](CHANGELOG/2026-09/27-003-friend-history.md).
+**최신 변경 (2026-10-04):** [닉네임 입력창 테두리](CHANGELOG/2026-10/04-001-nickname-input-border.md)를 통일하고, 폴더 사용처 점검·임시 캐시 정리·중복 HTTP 처리 통합·코드 줄바꿈을 마쳤습니다. 백엔드 288개·Chrome 화면 33개 검사와 Python 실행 구조 동일성 확인 결과는 [폴더·코드 정리 기록](CHANGELOG/2026-10/04-002-cleanup-readability.md)에 있습니다. Windows의 실제 ngrok 주소에서 인증 후 게임 화면이 열리는 것은 사용자가 확인했습니다.
+
+이어서 [Mac 관리 도구와 브라우저 호환 처리](CHANGELOG/2026-10/04-003-mac-management.md)를 추가했습니다. `setup/start/stop/status/logs/update/backup/restore`를 같은 명령 파일로 실행하며, 실제 Mac에서의 최종 확인은 [Mac 안내](docs/MAC.md)를 따릅니다. 세 작업을 포함한 [GitHub 반영 범위](CHANGELOG/2026-10/04-004-github-update.md)도 기록했습니다.
+
+**이전 로컬 변경 (2026-09-27):** 정답 완료 상자·내 통계·상위 1,000개 단어 링크와 정답 후 친구 추측 기록 열람을 추가했습니다. 당시 백엔드 288개·Chrome 화면 33개·실제 모델 통합 8개 묶음을 확인했습니다. [GitHub 반영 범위](CHANGELOG/2026-09/27-004-github-update.md). [변경 파일과 검증 결과](CHANGELOG/2026-09/27-003-friend-history.md).
 
 ## 실행과 종료
 
@@ -76,7 +82,7 @@ Compose 이름 `ganmantle-v1`과 모델 볼륨 `ganmantle-v1_model_data`는 고�
 | `frontend/src/styles.css` | 글자·색상·너비·여백·모바일 배치 |
 | `frontend/src/ranking/` | 사용자 랭킹·공동 순위 시간, 단어 순위 막대·친구 추측 기록 창 |
 | `frontend/src/chat/` | 작은 채팅 팝업·방·초대·메시지·초안 |
-| `frontend/src/api.ts` | 게임 API 요청·응답 타입 |
+| `frontend/src/api.ts` | 게임 응답 타입·게임과 채팅의 공통 HTTP 요청 처리 |
 | `frontend/public/brand-mark.svg` | 로고·파비콘 |
 | `backend/app/main.py`, `users.py` | 서버 시작·화면 제공·닉네임·세션 |
 | `backend/app/game.py`, `chat.py` | 게임·랭킹 규칙, 채팅 저장·접근 권한 |
@@ -85,6 +91,7 @@ Compose 이름 `ganmantle-v1`과 모델 볼륨 `ganmantle-v1_model_data`는 고�
 | `backend/app/words.py`, `dictionary/`, `answers.txt` | 입력 형식·비교 사전·정답 후보 |
 | `backend/app/db.py`, `backend/migrations/` | DB 연결·순서대로 적용하는 SQL 변경 이력 |
 | `backend/tests/`, `scripts/` | 자동 검사·모델 준비·백업·복원 |
+| `scripts/manage.sh`, `docs/MAC.md` | Mac/Linux 최초 준비·시작·종료·업데이트·백업/복원과 Windows에서의 이전 안내 |
 | `Dockerfile`, `compose.yaml`, `.env.example` | 앱+DB 실행·비밀값 없는 설정 예시 |
 | `.github/workflows/check.yml` | GitHub 자동 검사. 자동 배포 없음 |
 | `model-manifest.json`, `docs/MODEL.md` | 현재 모델 버전·체크섬·라이선스·전환 방법 |

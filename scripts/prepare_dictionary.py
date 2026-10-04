@@ -1,4 +1,5 @@
 """동봉한 고정 버전 사전에서 허용 단어를 재생성합니다. 외부 접속/추가 패키지는 없습니다."""
+
 import argparse
 import hashlib
 import json
@@ -34,10 +35,15 @@ def build():
     if count != 53817:
         raise ValueError("원본 레코드 수가 다릅니다. 추출 형식을 다시 확인하세요.")
     words.difference_update(forbidden)
-    answers = {line.strip() for line in (ROOT / "backend/app/answers.txt").read_text(encoding="utf-8-sig").splitlines()
-               if line.strip() and not line.lstrip().startswith("#")}
+    answers = {
+        line.strip()
+        for line in (ROOT / "backend/app/answers.txt").read_text(encoding="utf-8-sig").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
     if not answers.issubset(words):
-        raise ValueError("정답 후보 중 허용 사전에 없는 단어가 있습니다. 사전/정답 후보를 함께 검토하세요.")
+        raise ValueError(
+            "정답 후보 중 허용 사전에 없는 단어가 있습니다. 사전/정답 후보를 함께 검토하세요."
+        )
     output = ("\n".join(sorted(words)) + "\n").encode("utf-8")
     manifest = {
         "name": "hunspell-dict-ko 표제어",
@@ -46,17 +52,31 @@ def build():
         "license": "GPL-3.0-or-later",
         "source": {
             "url": f"https://raw.githubusercontent.com/spellcheck-ko/hunspell-dict-ko/{REVISION}/dict-ko-data.yaml",
-            "path": "source.yaml", "sha256": SOURCE_SHA256, "size": len(source), "entries": count,
+            "path": "source.yaml",
+            "sha256": SOURCE_SHA256,
+            "size": len(source),
+            "entries": count,
         },
-        "rules": {"parts_of_speech": sorted(ALLOWED_POS), "format": "NFC [가-힣]{1,40}", "exclude_forbidden": True},
-        "output": {"path": "words.txt", "count": len(words), "size": len(output), "sha256": hashlib.sha256(output).hexdigest()},
+        "rules": {
+            "parts_of_speech": sorted(ALLOWED_POS),
+            "format": "NFC [가-힣]{1,40}",
+            "exclude_forbidden": True,
+        },
+        "output": {
+            "path": "words.txt",
+            "count": len(words),
+            "size": len(output),
+            "sha256": hashlib.sha256(output).hexdigest(),
+        },
     }
     return output, (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="파일을 바꾸지 않고 재생성 결과와 비교")
+    parser.add_argument(
+        "--check", action="store_true", help="파일을 바꾸지 않고 재생성 결과와 비교"
+    )
     args = parser.parse_args()
     output, manifest = build()
     for name, content in (("words.txt", output), ("manifest.json", manifest)):
@@ -66,4 +86,6 @@ if __name__ == "__main__":
                 raise SystemExit(f"사전 검사 실패: {name}")
         else:
             target.write_bytes(content)
-    print(f"사전 {'검사' if args.check else '생성'} 통과: {len(output.splitlines()):,}개, {len(output):,}바이트")
+    print(
+        f"사전 {'검사' if args.check else '생성'} 통과: {len(output.splitlines()):,}개, {len(output):,}바이트"
+    )

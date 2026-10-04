@@ -3,6 +3,7 @@
 고정 엔진은 API 전달/오류 검사 전용입니다. 실제 어휘 순위의 수학적 경계와
 모델 품질은 WordRankIndex 단위 검사와 실제 모델 스모크 검사에서 따로 확인합니다.
 """
+
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 import json
@@ -21,22 +22,32 @@ from app.words import is_allowed_word
 
 REFERENCE = {"vocabulary_size": 49485, "top1": 95.678901, "top10": 64.234567, "top1000": -1.234567}
 RANKS = {"사과": 0, "연필": 1, "산책": 10, "바다": 1000, "학교": 1000}
-SCORES = {"사과": 100.0, "연필": REFERENCE["top1"], "산책": REFERENCE["top10"],
-          "바다": REFERENCE["top1000"], "학교": REFERENCE["top1000"], "모니터": -2.5}
+SCORES = {
+    "사과": 100.0,
+    "연필": REFERENCE["top1"],
+    "산책": REFERENCE["top10"],
+    "바다": REFERENCE["top1000"],
+    "학교": REFERENCE["top1000"],
+    "모니터": -2.5,
+}
 
 
 @pytest.fixture
 def rank_runtime(runtime, monkeypatch):
     client, clock, engine = runtime
-    monkeypatch.setattr(engine, "rankings", lambda answer: {"ranks": dict(RANKS), "reference": dict(REFERENCE)})
+    monkeypatch.setattr(
+        engine, "rankings", lambda answer: {"ranks": dict(RANKS), "reference": dict(REFERENCE)}
+    )
     monkeypatch.setattr(engine, "score", lambda word, answer: SCORES[word])
     return client, clock, engine
 
 
 def records():
     with db.connect() as conn:
-        return {table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
-                for table in ("users", "puzzles", "games", "guesses")}
+        return {
+            table: conn.execute(f"SELECT * FROM {table} ORDER BY 1").fetchall()
+            for table in ("users", "puzzles", "games", "guesses")
+        }
 
 
 def assert_reference(state):
@@ -89,14 +100,22 @@ def test_simultaneous_anonymous_reads_create_one_puzzle_and_no_games(rank_runtim
     assert scalar("SELECT count(*) FROM users") == 0
 
 
-def test_ranks_include_boundaries_ties_outside_answer_duplicate_and_reconnect(rank_runtime, monkeypatch):
+def test_ranks_include_boundaries_ties_outside_answer_duplicate_and_reconnect(
+    rank_runtime, monkeypatch
+):
     client, clock, engine = rank_runtime
     day, started = begin(client, "순위확인")
     assert started["ranking"]["playing"][0]["best_similarity_rank"] is None
-    for attempt, (word, rank, best) in enumerate((
-        ("모니터", None, None), ("바다", 1000, 1000), ("학교", 1000, 1000),
-        ("산책", 10, 10), ("연필", 1, 1),
-    ), start=1):
+    for attempt, (word, rank, best) in enumerate(
+        (
+            ("모니터", None, None),
+            ("바다", 1000, 1000),
+            ("학교", 1000, 1000),
+            ("산책", 10, 10),
+            ("연필", 1, 1),
+        ),
+        start=1,
+    ):
         response = submit(client, day, word)
         assert response.status_code == 200
         state = response.json()
@@ -140,7 +159,9 @@ def test_ranks_include_boundaries_ties_outside_answer_duplicate_and_reconnect(ra
             assert private_word not in json.dumps(public, ensure_ascii=False)
 
 
-def test_unready_engine_never_creates_puzzle_or_returns_example_reference(rank_runtime, monkeypatch):
+def test_unready_engine_never_creates_puzzle_or_returns_example_reference(
+    rank_runtime, monkeypatch
+):
     client, _, engine = rank_runtime
     engine.ready = False
     engine.error = "TEST ONLY: dictionary fingerprint mismatch"
@@ -166,7 +187,9 @@ def test_index_failure_keeps_records_and_blocks_new_guess_then_recovers(rank_run
     original_rankings = engine.rankings
     score = Mock(side_effect=AssertionError("순위가 없으면 새 점수를 계산하면 안 됩니다."))
     monkeypatch.setattr(engine, "score", score)
-    monkeypatch.setattr(engine, "rankings", Mock(side_effect=ModelUnavailableError("사과: 비공개 오류 예시")))
+    monkeypatch.setattr(
+        engine, "rankings", Mock(side_effect=ModelUnavailableError("사과: 비공개 오류 예시"))
+    )
     response = client.get("/api/state")
     assert response.status_code == 200
     assert_unavailable(response.json())
@@ -193,7 +216,9 @@ def test_index_failure_blocks_first_start_without_creating_game(rank_runtime, mo
     assert scalar("SELECT count(*) FROM guesses") == 0
 
 
-def test_changed_puzzle_fingerprint_hides_current_index_and_preserves_guesses(rank_runtime, monkeypatch):
+def test_changed_puzzle_fingerprint_hides_current_index_and_preserves_guesses(
+    rank_runtime, monkeypatch
+):
     client, _, engine = rank_runtime
     day, _ = begin(client)
     assert submit(client, day, "산책").status_code == 200
@@ -213,7 +238,9 @@ def test_score_update_notice_survives_rank_lookup(rank_runtime):
     client, clock, _ = rank_runtime
     day, _ = begin(client)
     with db.connect() as conn:
-        conn.execute("UPDATE puzzles SET scores_updated_at = %s WHERE puzzle_date = %s", (clock["now"], day))
+        conn.execute(
+            "UPDATE puzzles SET scores_updated_at = %s WHERE puzzle_date = %s", (clock["now"], day)
+        )
     before = records()
     state = client.get("/api/state").json()
     assert_reference(state)
@@ -221,7 +248,9 @@ def test_score_update_notice_survives_rank_lookup(rank_runtime):
     assert records() == before
 
 
-def test_midnight_during_first_rank_lookup_returns_new_day_without_starting_game(rank_runtime, monkeypatch):
+def test_midnight_during_first_rank_lookup_returns_new_day_without_starting_game(
+    rank_runtime, monkeypatch
+):
     client, clock, engine = rank_runtime
     clock["now"] = datetime(2026, 9, 19, 14, 59, 59, tzinfo=UTC)
     day, _ = begin(client)
@@ -248,8 +277,11 @@ def test_midnight_during_first_rank_lookup_returns_new_day_without_starting_game
     assert scalar("SELECT status FROM games") == "incomplete"
     assert scalar("SELECT count(*) FROM guesses") == 1
 
+
 @pytest.mark.parametrize("fail", [False, True], ids=["ready", "failed"])
-def test_midnight_during_guess_rank_lookup_rejects_without_attempt_or_score(rank_runtime, monkeypatch, fail):
+def test_midnight_during_guess_rank_lookup_rejects_without_attempt_or_score(
+    rank_runtime, monkeypatch, fail
+):
     client, clock, engine = rank_runtime
     clock["now"] = datetime(2026, 9, 19, 14, 59, 59, tzinfo=UTC)
     day, _ = begin(client)
@@ -274,11 +306,18 @@ def test_midnight_during_guess_rank_lookup_rejects_without_attempt_or_score(rank
     score.assert_not_called()
 
 
-def test_reference_exposes_only_numbers_even_if_internal_index_has_extra_data(rank_runtime, monkeypatch):
+def test_reference_exposes_only_numbers_even_if_internal_index_has_extra_data(
+    rank_runtime, monkeypatch
+):
     client, _, engine = rank_runtime
-    monkeypatch.setattr(engine, "rankings", lambda answer: {
-        "ranks": dict(RANKS), "reference": {**REFERENCE, "answer": answer, "words": list(RANKS)},
-    })
+    monkeypatch.setattr(
+        engine,
+        "rankings",
+        lambda answer: {
+            "ranks": dict(RANKS),
+            "reference": {**REFERENCE, "answer": answer, "words": list(RANKS)},
+        },
+    )
     response = client.get("/api/state")
     assert response.status_code == 200
     assert_reference(response.json())
@@ -291,15 +330,21 @@ def oov_runtime(runtime, monkeypatch):
     """API 계약 전용 모형입니다. 운영 엔진은 실제 fastText .bin을 읽습니다."""
     client, clock, engine = runtime
     # 정답을 뺀 비교 사전 1,001개: 20점 동점 990개와 1,000위 경계를 포함합니다.
-    sorted_scores = np.array([-5.0, -2.5, -1.25, -1.25] + [20.0] * 990
-                             + [40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 95.0], dtype=np.float64)
-    scores = {"사과": 100.0, "산책": 20.0, "초록구름산책냥": 80.0,
-              "새로만든한국어조합말": 70.0}
+    sorted_scores = np.array(
+        [-5.0, -2.5, -1.25, -1.25] + [20.0] * 990 + [40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 95.0],
+        dtype=np.float64,
+    )
+    scores = {"사과": 100.0, "산책": 20.0, "초록구름산책냥": 80.0, "새로만든한국어조합말": 70.0}
     monkeypatch.setattr(engine, "supports_oov", True, raising=False)
-    monkeypatch.setattr(engine, "rankings", lambda answer: {
-        "ranks": {answer: 0, "산책": 8}, "sorted_scores": sorted_scores,
-        "reference": {"vocabulary_size": 1002, "top1": 95.0, "top10": 20.0, "top1000": -2.5},
-    })
+    monkeypatch.setattr(
+        engine,
+        "rankings",
+        lambda answer: {
+            "ranks": {answer: 0, "산책": 8},
+            "sorted_scores": sorted_scores,
+            "reference": {"vocabulary_size": 1002, "top1": 95.0, "top10": 20.0, "top1000": -2.5},
+        },
+    )
     monkeypatch.setattr(engine, "score", Mock(side_effect=lambda word, answer: scores[word]))
     return client, clock, engine
 
@@ -311,9 +356,14 @@ def test_oov_success_duplicate_reconnect_and_public_best_rank(oov_runtime, monke
     assert not is_allowed_word(oov_word) and not is_allowed_word(lower_oov_word)
     day, started = begin(client, "미등록입력검증")
     clock["now"] += timedelta(seconds=30)
-    for attempt, (word, expected_rank, best_score, best_rank) in enumerate((
-        ("산책", 8, 20.0, 8), (oov_word, 3, 80.0, 3), (lower_oov_word, 4, 80.0, 3),
-    ), start=1):
+    for attempt, (word, expected_rank, best_score, best_rank) in enumerate(
+        (
+            ("산책", 8, 20.0, 8),
+            (oov_word, 3, 80.0, 3),
+            (lower_oov_word, 4, 80.0, 3),
+        ),
+        start=1,
+    ):
         response = submit(client, day, word)
         assert response.status_code == 200
         state = response.json()
@@ -335,8 +385,11 @@ def test_oov_success_duplicate_reconnect_and_public_best_rank(oov_runtime, monke
     assert duplicate["game"]["started_at"] == started["game"]["started_at"]
     assert duplicate["game"]["elapsed_ms"] == 30000
     assert duplicate["game"]["guesses"][0] == {
-        "word": oov_word, "similarity": 80.0, "attempt": 2,
-        "is_correct": False, "similarity_rank": 3,
+        "word": oov_word,
+        "similarity": 80.0,
+        "attempt": 2,
+        "is_correct": False,
+        "similarity_rank": 3,
     }
     assert duplicate["ranking"] == state["ranking"]
     assert scalar("SELECT count(*) FROM guesses") == 3
@@ -356,12 +409,20 @@ def test_oov_success_duplicate_reconnect_and_public_best_rank(oov_runtime, monke
     score.assert_not_called()
 
 
-@pytest.mark.parametrize("score, expected_rank", [
-    (95.0, 1), (20.0, 8), (-1.25, 998), (-2.5, 1000),
-    (float(np.nextafter(-2.5, -np.inf)), None),
-], ids=["top-tie", "many-ties", "near-boundary-tie", "rank-1000", "strictly-outside"])
+@pytest.mark.parametrize(
+    "score, expected_rank",
+    [
+        (95.0, 1),
+        (20.0, 8),
+        (-1.25, 998),
+        (-2.5, 1000),
+        (float(np.nextafter(-2.5, -np.inf)), None),
+    ],
+    ids=["top-tie", "many-ties", "near-boundary-tie", "rank-1000", "strictly-outside"],
+)
 def test_oov_score_rank_uses_same_strict_comparison_for_guess_and_ranking(
-        oov_runtime, monkeypatch, score, expected_rank):
+    oov_runtime, monkeypatch, score, expected_rank
+):
     client, _, engine = oov_runtime
     word = "초록구름산책냥"
     assert not is_allowed_word(word)
@@ -378,12 +439,21 @@ def test_oov_score_rank_uses_same_strict_comparison_for_guess_and_ranking(
     assert own["best_similarity"] == score and own["best_similarity_rank"] == expected_rank
 
 
-@pytest.mark.parametrize("word, code", [
-    ("ㄱㄴ", "unrecognized_word"), ("가 나", "unrecognized_word"),
-    ("hello", "unrecognized_word"), ("가1", "unrecognized_word"),
-    (" \t ", "invalid_word"), ("가\n나", "invalid_word"),
-], ids=["jamo", "inner-space", "latin", "digit", "blank", "control"])
-def test_oov_invalid_format_does_not_call_engine_or_change_records(oov_runtime, monkeypatch, word, code):
+@pytest.mark.parametrize(
+    "word, code",
+    [
+        ("ㄱㄴ", "unrecognized_word"),
+        ("가 나", "unrecognized_word"),
+        ("hello", "unrecognized_word"),
+        ("가1", "unrecognized_word"),
+        (" \t ", "invalid_word"),
+        ("가\n나", "invalid_word"),
+    ],
+    ids=["jamo", "inner-space", "latin", "digit", "blank", "control"],
+)
+def test_oov_invalid_format_does_not_call_engine_or_change_records(
+    oov_runtime, monkeypatch, word, code
+):
     client, _, engine = oov_runtime
     day, _ = begin(client)
     before = records()
@@ -441,9 +511,13 @@ def test_oov_zero_vector_crossing_midnight_prioritizes_date_change(oov_runtime, 
     assert scalar("SELECT closed_at FROM games") == clock["now"]
 
 
-def test_completed_best_score_tie_prefers_exact_answer_over_earlier_wrong_word(rank_runtime, monkeypatch):
+def test_completed_best_score_tie_prefers_exact_answer_over_earlier_wrong_word(
+    rank_runtime, monkeypatch
+):
     client, clock, engine = rank_runtime
-    monkeypatch.setattr(engine, "score", lambda word, answer: {"모니터": 100.0, "사과": 100.0}[word])
+    monkeypatch.setattr(
+        engine, "score", lambda word, answer: {"모니터": 100.0, "사과": 100.0}[word]
+    )
     day, _ = begin(client)
     clock["now"] += timedelta(seconds=1)
     wrong = submit(client, day, "모니터")

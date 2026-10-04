@@ -4,6 +4,7 @@
 정답·입력·횟수·시각·순위 기준·사용자·채팅·과거 날짜는 변경하지 않습니다.
 출력은 개수·모델 지문·점수 전체 분포뿐이며 입력과 정답을 출력하지 않습니다.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -43,8 +44,10 @@ def distribution(values: list[float]) -> dict:
 
 def valid_fingerprint(value: str) -> bool:
     # 지문은 불투명한 버전 식별자입니다. 테스트용 식별자도 같은 경로를 사용합니다.
-    return isinstance(value, str) and 1 <= len(value) <= 256 and all(
-        character.isprintable() and not character.isspace() for character in value
+    return (
+        isinstance(value, str)
+        and 1 <= len(value) <= 256
+        and all(character.isprintable() and not character.isspace() for character in value)
     )
 
 
@@ -70,7 +73,10 @@ def recalculate_scores(
     if not valid_fingerprint(from_fingerprint):
         raise ScoreUpdateError("invalid_fingerprint", "기존 모델 지문을 지정해야 합니다.")
     if not engine.ready:
-        raise ScoreUpdateError("model_unavailable", "새 모델이 준비되지 않았습니다. 모델 파일과 검증 결과를 확인하세요.")
+        raise ScoreUpdateError(
+            "model_unavailable",
+            "새 모델이 준비되지 않았습니다. 모델 파일과 검증 결과를 확인하세요.",
+        )
     to_fingerprint = engine.fingerprint
     if not valid_fingerprint(to_fingerprint) or to_fingerprint == "unavailable":
         raise ScoreUpdateError("invalid_fingerprint", "새 모델의 지문이 유효하지 않습니다.")
@@ -78,7 +84,9 @@ def recalculate_scores(
     def check_date():
         current = clock()
         if game.puzzle_date(current) != day:
-            raise ScoreUpdateError("date_changed", "전환 중 한국 시간 날짜가 바뀌어 전체 변경을 취소했습니다.")
+            raise ScoreUpdateError(
+                "date_changed", "전환 중 한국 시간 날짜가 바뀌어 전체 변경을 취소했습니다."
+            )
         return current
 
     try:
@@ -92,20 +100,28 @@ def recalculate_scores(
                 (day,),
             ).fetchone()
             if puzzle is None:
-                raise ScoreUpdateError("puzzle_missing", "오늘 저장된 문제가 없습니다. 전환할 기록이 없습니다.")
+                raise ScoreUpdateError(
+                    "puzzle_missing", "오늘 저장된 문제가 없습니다. 전환할 기록이 없습니다."
+                )
             previous_fingerprint = puzzle["model_fingerprint"]
             # 이미 반영된 명령을 같은 --from-fingerprint로 재실행해도 기록을 다시 쓰지 않습니다.
             already_current = previous_fingerprint == to_fingerprint
             if not already_current and previous_fingerprint != from_fingerprint:
-                raise ScoreUpdateError("fingerprint_mismatch", "DB의 기존 모델 지문이 --from-fingerprint와 다릅니다. 변경하지 않았습니다.")
+                raise ScoreUpdateError(
+                    "fingerprint_mismatch",
+                    "DB의 기존 모델 지문이 --from-fingerprint와 다릅니다. 변경하지 않았습니다.",
+                )
             count = conn.execute(
                 "SELECT count(*) AS count FROM games WHERE puzzle_date = %s", (day,)
             ).fetchone()["count"]
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT q.id, q.word, q.similarity
                 FROM guesses q JOIN games g ON g.id = q.game_id
                 WHERE g.puzzle_date = %s ORDER BY q.id
-            """, (day,)).fetchall()
+            """,
+                (day,),
+            ).fetchall()
             old_values = [float(row["similarity"]) for row in rows]
             report = {
                 "status": "already_current" if already_current else "dry_run",
@@ -115,7 +131,9 @@ def recalculate_scores(
                 "games_count": count,
                 "guesses_count": len(rows),
                 "updated_count": 0,
-                "scores_updated_at": puzzle["scores_updated_at"].isoformat() if puzzle["scores_updated_at"] else None,
+                "scores_updated_at": puzzle["scores_updated_at"].isoformat()
+                if puzzle["scores_updated_at"]
+                else None,
                 "old_scores": distribution(old_values),
                 "new_scores": distribution(old_values) if already_current else None,
             }
@@ -134,15 +152,23 @@ def recalculate_scores(
                         value = float(engine.score(word, puzzle["answer"]))
                     except Exception:
                         check_date()
-                        raise ScoreUpdateError("score_failed", "기존 입력의 재계산에 실패해 전체 작업을 중단했습니다. 기록은 변경하지 않았습니다.") from None
+                        raise ScoreUpdateError(
+                            "score_failed",
+                            "기존 입력의 재계산에 실패해 전체 작업을 중단했습니다. 기록은 변경하지 않았습니다.",
+                        ) from None
                     check_date()
                     if not math.isfinite(value) or not -100 <= value <= 100:
-                        raise ScoreUpdateError("invalid_score", "재계산 결과가 유한한 -100~100 점수가 아닙니다. 기록은 변경하지 않았습니다.")
+                        raise ScoreUpdateError(
+                            "invalid_score",
+                            "재계산 결과가 유한한 -100~100 점수가 아닙니다. 기록은 변경하지 않았습니다.",
+                        )
                     scores_by_word[word] = value
                 updates.append((scores_by_word[word], row["id"]))
             check_date()
             if not engine.ready or engine.fingerprint != to_fingerprint:
-                raise ScoreUpdateError("model_unavailable", "재계산 중 모델 상태가 바뀌어 작업을 중단했습니다.")
+                raise ScoreUpdateError(
+                    "model_unavailable", "재계산 중 모델 상태가 바뀌어 작업을 중단했습니다."
+                )
             report["new_scores"] = distribution([value for value, _ in updates])
             if apply:
                 for value, guess_id in updates:
@@ -150,42 +176,79 @@ def recalculate_scores(
                         "UPDATE guesses SET similarity = %s WHERE id = %s", (value, guess_id)
                     ).rowcount
                     if changed != 1:
-                        raise ScoreUpdateError("record_changed", "대상 기록이 바뀌어 전체 작업을 취소했습니다.")
+                        raise ScoreUpdateError(
+                            "record_changed", "대상 기록이 바뀌어 전체 작업을 취소했습니다."
+                        )
                 updated_at = check_date()
-                changed = conn.execute("""
+                changed = conn.execute(
+                    """
                     UPDATE puzzles SET model_fingerprint = %s, scores_updated_at = %s
                     WHERE puzzle_date = %s AND model_fingerprint = %s
-                """, (to_fingerprint, updated_at, day, from_fingerprint)).rowcount
+                """,
+                    (to_fingerprint, updated_at, day, from_fingerprint),
+                ).rowcount
                 if changed != 1:
-                    raise ScoreUpdateError("record_changed", "대상 문제가 바뀌어 전체 작업을 취소했습니다.")
-                report.update(status="applied", updated_count=len(updates), scores_updated_at=updated_at.isoformat())
+                    raise ScoreUpdateError(
+                        "record_changed", "대상 문제가 바뀌어 전체 작업을 취소했습니다."
+                    )
+                report.update(
+                    status="applied",
+                    updated_count=len(updates),
+                    scores_updated_at=updated_at.isoformat(),
+                )
             check_date()
             return report
     except LockNotAvailable:
-        raise ScoreUpdateError("database_busy", "게임 DB가 사용 중입니다. 앱을 정지한 뒤 다시 실행해 주세요.") from None
+        raise ScoreUpdateError(
+            "database_busy", "게임 DB가 사용 중입니다. 앱을 정지한 뒤 다시 실행해 주세요."
+        ) from None
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--from-fingerprint", required=True, help="오늘 문제에 저장된 변경 전 모델 지문")
-    parser.add_argument("--date", type=date.fromisoformat, help="대상 날짜 YYYY-MM-DD. 생략하면 한국 시간 오늘")
-    parser.add_argument("--apply", action="store_true", help="계산 결과를 실제 반영합니다. 생략하면 DB를 변경하지 않습니다.")
+    parser.add_argument(
+        "--from-fingerprint", required=True, help="오늘 문제에 저장된 변경 전 모델 지문"
+    )
+    parser.add_argument(
+        "--date", type=date.fromisoformat, help="대상 날짜 YYYY-MM-DD. 생략하면 한국 시간 오늘"
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="계산 결과를 실제 반영합니다. 생략하면 DB를 변경하지 않습니다.",
+    )
     args = parser.parse_args(argv)
     try:
         # CLI 인자를 검사한 뒤에만 모델을 읽습니다. DB 변경 이력을 자동 적용하지 않습니다.
         from app.similarity import get_engine
+
         with db.connect() as conn:
             report = recalculate_scores(
-                conn, get_engine(), from_fingerprint=args.from_fingerprint,
-                target_date=args.date, apply=args.apply,
+                conn,
+                get_engine(),
+                from_fingerprint=args.from_fingerprint,
+                target_date=args.date,
+                apply=args.apply,
             )
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
     except ScoreUpdateError as error:
-        print(json.dumps({"error": error.code, "message": str(error)}, ensure_ascii=False), file=sys.stderr)
+        print(
+            json.dumps({"error": error.code, "message": str(error)}, ensure_ascii=False),
+            file=sys.stderr,
+        )
     except Exception:
         # DB 오류에 SQL/연결 정보/입력이 포함돼도 사용자 기록을 로그에 출력하지 않습니다.
-        print(json.dumps({"error": "operation_failed", "message": "처리에 실패했습니다. DB 연결, SQL 변경 이력, 모델 준비를 확인해 주세요."}, ensure_ascii=False), file=sys.stderr)
+        print(
+            json.dumps(
+                {
+                    "error": "operation_failed",
+                    "message": "처리에 실패했습니다. DB 연결, SQL 변경 이력, 모델 준비를 확인해 주세요.",
+                },
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
     return 1
 
 

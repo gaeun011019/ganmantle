@@ -32,8 +32,9 @@ export default function Ranking({
     if (!canViewHistory) setHistoryPerson(null);
   }, [canViewHistory]);
   const rankCounts = new Map<number, number>();
-  for (const player of ranking.completed)
+  for (const player of ranking.completed) {
     rankCounts.set(player.rank, (rankCounts.get(player.rank) ?? 0) + 1);
+  }
   const players = [...ranking.completed, ...ranking.playing];
 
   return (
@@ -90,8 +91,11 @@ export default function Ranking({
                         aria-label={`${player.nickname} 님${canViewHistory ? '의 추측 기록 보기' : '과 대화 선택'}`}
                         onClick={() => {
                           const person = { id: player.user_id, nickname: player.nickname };
-                          if (canViewHistory) setHistoryPerson(person);
-                          else onContact(person);
+                          if (canViewHistory) {
+                            setHistoryPerson(person);
+                          } else {
+                            onContact(person);
+                          }
                         }}
                       >
                         {player.nickname}

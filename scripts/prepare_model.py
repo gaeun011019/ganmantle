@@ -1,4 +1,5 @@
 """간맨틀: 고정 모델을 내려받고 바이트 크기와 SHA-256을 검증한다. 표준 라이브러리만 사용."""
+
 from __future__ import annotations
 import argparse
 import json
@@ -25,7 +26,10 @@ def validate(path: Path, item: dict) -> bool:
 def save_verification(path: Path, item: dict) -> None:
     """전체 검증과 최종 파일 교체 뒤 선택 캐시를 기록합니다."""
     if not remember_verified(path, item):
-        print("모델 검증은 완료했지만 캐시를 저장하지 못했습니다. 다음 시작 시 전체 검증합니다.", flush=True)
+        print(
+            "모델 검증은 완료했지만 캐시를 저장하지 못했습니다. 다음 시작 시 전체 검증합니다.",
+            flush=True,
+        )
 
 
 def download(path: Path, item: dict, url: str) -> None:
@@ -41,7 +45,10 @@ def download(path: Path, item: dict, url: str) -> None:
             return
         # 완성 크기의 손상 파일은 Range로 복구할 수 없습니다. 다음 실행은 0부터 받습니다.
         # 새 응답을 검증하기 전에는 이 파일도 지우거나 비우지 않습니다.
-        print(f"부분 파일 크기 또는 SHA-256 검증 실패: {item['path']} — 처음부터 다시 받습니다.", flush=True)
+        print(
+            f"부분 파일 크기 또는 SHA-256 검증 실패: {item['path']} — 처음부터 다시 받습니다.",
+            flush=True,
+        )
         offset = 0
     headers = {"User-Agent": "ganmantle-model-preparation/1", "Accept-Encoding": "identity"}
     if offset:
@@ -69,7 +76,8 @@ def download(path: Path, item: dict, url: str) -> None:
                 raise DownloadError(f"지원하지 않는 HTTP 응답 상태: {response.status}")
             content_length = response.headers.get("Content-Length")
             if content_length is not None and (
-                not re.fullmatch(r"[0-9]+", content_length) or int(content_length) != expected - received
+                not re.fullmatch(r"[0-9]+", content_length)
+                or int(content_length) != expected - received
             ):
                 raise DownloadError("HTTP Content-Length가 받을 모델 바이트 수와 다릅니다.")
             with partial.open(mode) as output:
@@ -87,7 +95,10 @@ def download(path: Path, item: dict, url: str) -> None:
         save_verification(path, item)
     except (Exception, KeyboardInterrupt):
         kept = partial.stat().st_size if partial.is_file() else 0
-        print(f"다운로드 중단: {item['path']} — 부분 파일 {kept:,} bytes를 남겼습니다. 같은 명령으로 다시 시도하세요.", flush=True)
+        print(
+            f"다운로드 중단: {item['path']} — 부분 파일 {kept:,} bytes를 남겼습니다. 같은 명령으로 다시 시도하세요.",
+            flush=True,
+        )
         raise
 
 
@@ -95,7 +106,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="다운로드 없이 기존 파일만 확인")
     parser.add_argument("--directory", help="다른 모델 저장 경로")
-    parser.add_argument("--manifest", type=Path, default=ROOT / "model-manifest.json", help="준비할 fastText 모델 명세")
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=ROOT / "model-manifest.json",
+        help="준비할 fastText 모델 명세",
+    )
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
     if manifest["algorithm"] != "fasttext-bin-subword-mean-l2-cosine100-v1":
@@ -115,7 +131,9 @@ def main() -> None:
         try:
             download(path, item, url)
         except KeyboardInterrupt:
-            raise SystemExit("다운로드를 중단했습니다. 부분 파일을 남겼으므로 같은 명령으로 재개할 수 있습니다.") from None
+            raise SystemExit(
+                "다운로드를 중단했습니다. 부분 파일을 남겼으므로 같은 명령으로 재개할 수 있습니다."
+            ) from None
         except Exception as error:
             # 네트워크 예외의 URL/헤더에는 일시적인 인증 값이 있을 수 있어 출력하지 않습니다.
             reason = str(error) if isinstance(error, DownloadError) else type(error).__name__

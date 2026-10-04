@@ -245,11 +245,15 @@ h1 {
   color: var(--blue-strong);
 }
 
-/* 4. 단어 입력·시작 버튼·오류와 정답 안내 */
+/* 4. 닉네임·단어 입력·시작 버튼·오류와 정답 안내 */
+/* 입력과 버튼을 한 테두리로 묶고, 비활성 버튼에서도 테두리는 선명하게 유지합니다. */
 .input-row {
   display: flex;
   align-items: stretch;
   gap: 0;
+  border: 1px solid #8097a8;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .input-wrap {
@@ -258,13 +262,15 @@ h1 {
 }
 
 .input-row input {
-  border-radius: 10px 0 0 10px;
+  border: 0;
+  border-radius: 9px 0 0 9px;
 }
 
 .input-row button {
   min-width: 110px;
   padding: 0 16px;
-  border-radius: 0 10px 10px 0;
+  border: 0;
+  border-radius: 0 9px 9px 0;
   font-size: 16px;
   white-space: nowrap;
 }
@@ -274,34 +280,17 @@ h1 {
   z-index: 1;
 }
 
-/* 추측 입력과 버튼을 한 테두리로 묶고, 비활성 버튼에서도 테두리는 선명하게 유지합니다. */
-.guess-form {
-  border: 1px solid #8097a8;
-  border-radius: 10px;
-  background: #fff;
-}
-
-.guess-form input {
-  border: 0;
-  border-radius: 9px 0 0 9px;
-}
-
-.guess-form button {
-  border: 0;
-  border-radius: 0 9px 9px 0;
-}
-
-.guess-form:focus-within {
+.input-row:focus-within {
   border-color: #175e80;
   outline: 2px solid #76c0e5;
   outline-offset: 2px;
 }
 
-.guess-form input:focus-visible {
+.input-row input:focus-visible {
   outline: none;
 }
 
-.guess-form button:focus-visible {
+.input-row button:focus-visible {
   outline-offset: -4px;
 }
 

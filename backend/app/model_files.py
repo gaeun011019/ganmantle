@@ -4,6 +4,7 @@
 로컬 관리자가 파일과 캐시를 함께 조작하는 공격의 암호학적 방어 수단은 아닙니다.
 앱의 verify_file은 읽기만 하며, 쓰기 가능한 준비 도구만 remember_verified를 호출합니다.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,8 +34,11 @@ def _record(path: Path, item: dict) -> dict | None:
         return None
     if not stat.S_ISREG(info.st_mode) or info.st_size != expected_size:
         return None
-    return {"expected_sha256": expected_sha, "expected_size": expected_size,
-            **{name: getattr(info, name) for name in _STAT_FIELDS}}
+    return {
+        "expected_sha256": expected_sha,
+        "expected_size": expected_size,
+        **{name: getattr(info, name) for name in _STAT_FIELDS},
+    }
 
 
 def _cache_location(path: Path, item: dict) -> tuple[Path, str] | None:
@@ -45,7 +49,7 @@ def _cache_location(path: Path, item: dict) -> tuple[Path, str] | None:
     parts = PurePosixPath(relative).parts
     if not parts or PurePosixPath(relative).is_absolute() or ".." in parts:
         return None
-    if tuple(path.parts[-len(parts):]) != parts:
+    if tuple(path.parts[-len(parts) :]) != parts:
         return None
     root = path
     for _ in parts:
@@ -60,8 +64,12 @@ def _read_cache(path: Path) -> dict:
         if len(raw) > _MAX_CACHE_BYTES:
             return {}
         value = json.loads(raw)
-        if (not isinstance(value, dict) or type(value.get("format")) is not int
-                or value["format"] != 1 or not isinstance(value.get("files"), dict)):
+        if (
+            not isinstance(value, dict)
+            or type(value.get("format")) is not int
+            or value["format"] != 1
+            or not isinstance(value.get("files"), dict)
+        ):
             return {}
         return value["files"]
     except (OSError, ValueError, UnicodeError, RecursionError):
@@ -69,9 +77,13 @@ def _read_cache(path: Path) -> dict:
 
 
 def _matches(entry: object, record: dict) -> bool:
-    return (isinstance(entry, dict) and entry.keys() == record.keys()
-            and all(type(entry[key]) is type(value) and entry[key] == value
-                    for key, value in record.items()))
+    return (
+        isinstance(entry, dict)
+        and entry.keys() == record.keys()
+        and all(
+            type(entry[key]) is type(value) and entry[key] == value for key, value in record.items()
+        )
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -117,15 +129,28 @@ def remember_verified(path: Path, item: dict) -> bool:
     if _matches(entries.get(key), record):
         return True
     entries[key] = record
-    data = json.dumps({"format": 1, "files": entries}, ensure_ascii=False,
-                      sort_keys=True, separators=(",", ":")) + "\n"
+    data = (
+        json.dumps(
+            {"format": 1, "files": entries},
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    )
     if len(data.encode("utf-8")) > _MAX_CACHE_BYTES:
         return False
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
-                                         prefix=".verified-model-", suffix=".tmp",
-                                         dir=cache_path.parent, delete=False) as output:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            prefix=".verified-model-",
+            suffix=".tmp",
+            dir=cache_path.parent,
+            delete=False,
+        ) as output:
             temporary = Path(output.name)
             output.write(data)
         # root로 준비해도 권한이 제한된 런타임 사용자가 캐시를 읽을 수 있어야 합니다.

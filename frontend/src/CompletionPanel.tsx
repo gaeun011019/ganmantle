@@ -68,7 +68,8 @@ export default function CompletionPanel({
   return (
     <section className="success-panel" aria-labelledby="completion-title">
       <p className="completion-summary" role="status">
-        <strong id="completion-title">정답 단어를 맞혔습니다!</strong> {attempts}번째 추측 만에 ‘{answer}’를 맞혔어요!
+        <strong id="completion-title">정답 단어를 맞혔습니다!</strong> {attempts}번째 추측 만에 ‘
+        {answer}’를 맞혔어요!
       </p>
       <p className="completion-related">
         정답 단어와 비슷한{' '}

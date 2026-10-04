@@ -4,6 +4,7 @@ Docker에서 8001 포트를 로컬로 연결해 실행하며 Ctrl+C/SIGTERM으�
 이번 실행에서 만든 무작위 PostgreSQL 스키마만 사용하고 종료 시 정리합니다.
 앱의 실제 모델·API·화면을 그대로 사용합니다. 공개 운영용 서버가 아닙니다.
 """
+
 import os
 import signal
 import sys
@@ -31,23 +32,37 @@ def run():
 
         # 본 앱에는 없는 검사 전용 표식. 브라우저 도구는 이것을 확인한 경우만 쓰기 검사합니다.
         def test_context():
-            return {"isolated_chat_check": True, "instance": schema.removeprefix("ganmantle_chat_browser_")}
+            return {
+                "isolated_chat_check": True,
+                "instance": schema.removeprefix("ganmantle_chat_browser_"),
+            }
 
         app.add_api_route("/api/test-context", test_context, methods=["GET"])
         app.router.routes.insert(0, app.router.routes.pop())
+
         # Uvicorn이 종료 신호를 원래 핸들러에 다시 전달해도 finally 정리가 실행되게 합니다.
         def stop(*_):
             raise KeyboardInterrupt
 
         signal.signal(signal.SIGTERM, stop)
         print("검사 전용 서버: 임시 스키마 사용, 종료 시 정리합니다.", flush=True)
-        uvicorn.run(app, host="0.0.0.0", port=8001, workers=1, log_level="warning", access_log=False,
-                    timeout_graceful_shutdown=5)
+        uvicorn.run(
+            app,
+            host="0.0.0.0",
+            port=8001,
+            workers=1,
+            log_level="warning",
+            access_log=False,
+            timeout_graceful_shutdown=5,
+        )
     finally:
         os.environ["DATABASE_URL"] = original_url
         with psycopg.connect(original_url, autocommit=True) as conn:
             conn.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
-        print("브라우저 검사 임시 스키마 정리 완료. 기존 앱 DB 기록은 사용하지 않았습니다.", flush=True)
+        print(
+            "브라우저 검사 임시 스키마 정리 완료. 기존 앱 DB 기록은 사용하지 않았습니다.",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

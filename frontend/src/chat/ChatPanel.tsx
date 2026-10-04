@@ -33,16 +33,19 @@ const emptySaved = (): SavedChat => ({
   drafts: {},
   outbox: {},
 });
+
 function loadSaved(key: string): SavedChat {
   try {
     const raw = JSON.parse(sessionStorage.getItem(key) || 'null');
     const saved = emptySaved();
     if (!raw || typeof raw !== 'object') return saved;
     if (['global', 'group', 'direct'].includes(raw.tab)) saved.tab = raw.tab;
-    for (const kind of ['group', 'direct'] as const)
+    for (const kind of ['group', 'direct'] as const) {
       if (typeof raw.selection?.[kind] === 'string') saved.selection[kind] = raw.selection[kind];
-    for (const [id, value] of Object.entries(raw.drafts || {}))
+    }
+    for (const [id, value] of Object.entries(raw.drafts || {})) {
       if (typeof value === 'string' && value.length <= 1000) saved.drafts[id] = value;
+    }
     for (const [id, value] of Object.entries(raw.outbox || {})) {
       const item = value as Partial<Outbox> | null;
       if (
@@ -50,24 +53,28 @@ function loadSaved(key: string): SavedChat {
         item.body.length <= 1000 &&
         typeof item.client_id === 'string' &&
         /^[0-9a-f-]{36}$/i.test(item.client_id)
-      )
+      ) {
         saved.outbox[id] = item as Outbox;
+      }
     }
     return saved;
   } catch {
     return emptySaved();
   }
 }
+
 function message(error: unknown): string {
   return error instanceof ApiError
     ? error.message
     : '채팅에 연결하지 못했어요. 다시 시도해 주세요.';
 }
+
 function mergeMessages(first: ChatMessage[], second: ChatMessage[]): ChatMessage[] {
   return [...new Map([...first, ...second].map((item) => [item.id, item])).values()].sort((a, b) =>
     BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0,
   );
 }
+
 function timeLabel(value: string): string {
   return new Date(value).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
@@ -169,9 +176,11 @@ export default function ChatPanel({
       setError('');
       setSaved((previous) => {
         const selection = { ...previous.selection };
-        for (const kind of ['group', 'direct'] as const)
-          if (selection[kind] && !result.rooms.some((room) => room.id === selection[kind]))
+        for (const kind of ['group', 'direct'] as const) {
+          if (selection[kind] && !result.rooms.some((room) => room.id === selection[kind])) {
             selection[kind] = null;
+          }
+        }
         return { ...previous, selection };
       });
     } catch (cause) {
@@ -198,8 +207,9 @@ export default function ChatPanel({
           result.messages.length &&
           BigInt(old.messages[0].id) <= BigInt(result.messages[0].id);
         const keepHistory = old && (overlaps || result.messages.length === 0);
-        if (!keepHistory)
+        if (!keepHistory) {
           historyGeneration.current[roomId] = (historyGeneration.current[roomId] || 0) + 1;
+        }
         setRoomPage(
           roomId,
           keepHistory
@@ -211,8 +221,9 @@ export default function ChatPanel({
         );
         setRoomErrors((previous) => ({ ...previous, [roomId]: '' }));
       } catch (cause) {
-        if (messageVersions.current[roomId] === version)
+        if (messageVersions.current[roomId] === version) {
           setRoomErrors((previous) => ({ ...previous, [roomId]: message(cause) }));
+        }
       }
     },
     [setRoomPage],
@@ -266,10 +277,11 @@ export default function ChatPanel({
     });
   }, [open, user?.id, activeId, loadMessages]);
   useEffect(() => {
-    if (open && stickToBottom.current)
+    if (open && stickToBottom.current) {
       requestAnimationFrame(() => {
         if (history.current) history.current.scrollTop = history.current.scrollHeight;
       });
+    }
   }, [open, activeId, page?.messages.length]);
   useEffect(() => {
     let cancelled = false;
@@ -302,6 +314,7 @@ export default function ChatPanel({
     setOpen(false);
     toggle.current?.focus({ preventScroll: true });
   }
+
   function switchTab(tab: Tab) {
     setSaved((previous) => ({ ...previous, tab }));
     setSearchMode(null);
@@ -310,6 +323,7 @@ export default function ChatPanel({
     setInvitees([]);
     setNotice('');
   }
+
   function selectRoom(room: ChatRoom) {
     setSaved((previous) => ({
       ...previous,
@@ -321,6 +335,7 @@ export default function ChatPanel({
     setPerson(null);
     setNotice('');
   }
+
   function beginSearch(mode: 'direct' | 'create' | 'invite') {
     setSearchMode(mode);
     setQuery('');
@@ -329,6 +344,7 @@ export default function ChatPanel({
     setError('');
     setNotice('');
   }
+
   async function action(run: () => Promise<void>) {
     if (actionBusy) return;
     setActionBusy(true);
@@ -342,6 +358,7 @@ export default function ChatPanel({
       setActionBusy(false);
     }
   }
+
   function startDirect() {
     if (!person) return;
     void action(async () => {
@@ -354,6 +371,7 @@ export default function ChatPanel({
       await loadRooms();
     });
   }
+
   function createRoom(event: FormEvent) {
     event.preventDefault();
     void action(async () => {
@@ -369,33 +387,38 @@ export default function ChatPanel({
       await loadRooms();
     });
   }
+
   function invitePeople() {
     if (!activeId || invitees.length === 0) return;
     const roomId = activeId;
     void action(async () => {
-      for (const invitee of invitees)
+      for (const invitee of invitees) {
         await chatRequest(`/rooms/${encodeURIComponent(roomId)}/invitations`, {
           user_id: invitee.id,
         });
+      }
       setSearchMode(null);
       setInvitees([]);
       setNotice('초대를 보냈어요.');
       await loadRooms();
     });
   }
+
   function answerInvitation(invitation: Invitation, accept: boolean) {
     void action(async () => {
       await chatRequest(`/invitations/${encodeURIComponent(invitation.room_id)}`, { accept });
       await loadRooms();
-      if (accept)
+      if (accept) {
         setSaved((previous) => ({
           ...previous,
           tab: 'group',
           selection: { ...previous.selection, group: invitation.room_id },
         }));
+      }
       setNotice(accept ? '초대를 수락했어요.' : '초대를 거절했어요.');
     });
   }
+
   async function loadOlder() {
     if (!activeId || !page?.next_before || olderLoading) return;
     const roomId = activeId;
@@ -424,8 +447,9 @@ export default function ChatPanel({
         next_before: result.next_before,
       });
       requestAnimationFrame(() => {
-        if (active.current === roomId && history.current)
+        if (active.current === roomId && history.current) {
           history.current.scrollTop += history.current.scrollHeight - height;
+        }
       });
     } catch (cause) {
       setRoomErrors((previous) => ({ ...previous, [roomId]: message(cause) }));
@@ -433,6 +457,7 @@ export default function ChatPanel({
       setOlderLoading(false);
     }
   }
+
   async function send(event: FormEvent) {
     event.preventDefault();
     if (!activeId || !user || sendingNow.current || !draft.trim() || !navigator.onLine) return;
@@ -476,6 +501,7 @@ export default function ChatPanel({
       setSending(false);
     }
   }
+
   function composeKey(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
       event.key === 'Enter' &&
@@ -745,9 +771,10 @@ export default function ChatPanel({
                 aria-relevant="additions"
                 onScroll={() => {
                   const element = history.current;
-                  if (element)
+                  if (element) {
                     stickToBottom.current =
                       element.scrollHeight - element.scrollTop - element.clientHeight < 50;
+                  }
                 }}
               >
                 {page?.next_before && (
@@ -835,11 +862,12 @@ export default function ChatPanel({
                   onKeyDown={composeKey}
                   disabled={!activeId}
                   onChange={(event) => {
-                    if (activeId)
+                    if (activeId) {
                       setSaved((previous) => ({
                         ...previous,
                         drafts: { ...previous.drafts, [activeId]: event.target.value },
                       }));
+                    }
                   }}
                 />
                 <button

@@ -3,6 +3,7 @@
 운영 모델 품질 검사가 아닌 규칙 검사입니다. 실제 사용자 DB는 조회하지 않으며,
 TEST_DATABASE_URL이 없으면 기존 runtime fixture가 검사를 건너뜁니다.
 """
+
 import copy
 import json
 import sys
@@ -24,13 +25,21 @@ from recalculate_scores import ScoreUpdateError, recalculate_scores
 
 GLOBAL_ROOM = "00000000-0000-0000-0000-000000000001"
 TABLES = (
-    "users", "puzzles", "games", "guesses", "chat_rooms", "chat_members",
-    "chat_invitations", "chat_messages", "schema_migrations",
+    "users",
+    "puzzles",
+    "games",
+    "guesses",
+    "chat_rooms",
+    "chat_members",
+    "chat_invitations",
+    "chat_messages",
+    "schema_migrations",
 )
 
 
 class UpdateTestEngine(RuleTestEngine):
     """전환 전후 점수가 확실히 다른 테스트 전용 엔진입니다."""
+
     ready = True
     name = "TEST ONLY: score update fixture"
     error = None
@@ -52,8 +61,10 @@ class UpdateTestEngine(RuleTestEngine):
 def stored_records():
     # 테이블명은 위의 고정 목록만 사용하고, 복합 키 테이블도 안정적으로 정렬합니다.
     with db.connect() as conn:
-        return {table: conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2").fetchall()
-                for table in TABLES}
+        return {
+            table: conn.execute(f"SELECT * FROM {table} ORDER BY 1, 2").fetchall()
+            for table in TABLES
+        }
 
 
 def preserved_fields(records, day):
@@ -76,21 +87,36 @@ def today_guesses(records, day):
 
 
 def ranking_without_scores(ranking):
-    return {status: [{key: value for key, value in row.items() if key != "best_similarity"}
-                     for row in rows] for status, rows in ranking.items()}
+    return {
+        status: [
+            {key: value for key, value in row.items() if key != "best_similarity"} for row in rows
+        ]
+        for status, rows in ranking.items()
+    }
 
 
 def update(engine, old_fingerprint, *, apply=True, target_date=None, now=None):
     with db.connect() as conn:
-        return recalculate_scores(conn, engine, from_fingerprint=old_fingerprint,
-                                  target_date=target_date, apply=apply, now=now)
+        return recalculate_scores(
+            conn,
+            engine,
+            from_fingerprint=old_fingerprint,
+            target_date=target_date,
+            apply=apply,
+            now=now,
+        )
 
 
 def assert_report_hides_private_data(report, records, cookie):
     encoded = json.dumps(report, ensure_ascii=False)
     private_values = {cookie}
-    for table, field in (("users", "nickname"), ("users", "session_hash"),
-                         ("puzzles", "answer"), ("guesses", "word"), ("chat_messages", "body")):
+    for table, field in (
+        ("users", "nickname"),
+        ("users", "session_hash"),
+        ("puzzles", "answer"),
+        ("guesses", "word"),
+        ("chat_messages", "body"),
+    ):
         private_values.update(row[field] for row in records[table])
     assert all(value not in encoded for value in private_values)
 
@@ -120,7 +146,11 @@ def mixed_games(runtime):
     clock["now"] = current_time
     day_text, _ = begin(client, "전환진행사용자")
     day = date.fromisoformat(day_text)
-    with TestClient(main.app) as first, TestClient(main.app) as second, TestClient(main.app) as empty:
+    with (
+        TestClient(main.app) as first,
+        TestClient(main.app) as second,
+        TestClient(main.app) as empty,
+    ):
         _, first_state = begin(first, "전환완료먼저")
         _, second_state = begin(second, "전환완료나중")
         begin(empty, "전환무입력")
@@ -133,17 +163,26 @@ def mixed_games(runtime):
         clock["now"] += timedelta(seconds=18)
         assert submit(second, day_text, "사과").status_code == 200
 
-        room_response = client.post("/api/chat/rooms", json={
-            "name": "점수와 무관한 대화",
-            "invitee_ids": [first_state["user"]["id"], second_state["user"]["id"]],
-        })
+        room_response = client.post(
+            "/api/chat/rooms",
+            json={
+                "name": "점수와 무관한 대화",
+                "invitee_ids": [first_state["user"]["id"], second_state["user"]["id"]],
+            },
+        )
         assert room_response.status_code == 200, room_response.text
         room_id = room_response.json()["room"]["id"]
-        assert first.post(f"/api/chat/invitations/{room_id}", json={"accept": True}).status_code == 200
+        assert (
+            first.post(f"/api/chat/invitations/{room_id}", json={"accept": True}).status_code == 200
+        )
         for room in (GLOBAL_ROOM, room_id):
-            sent = client.post(f"/api/chat/rooms/{room}/messages", json={
-                "body": "점수 재계산 중에도 보존할 테스트 대화", "client_id": str(uuid4()),
-            })
+            sent = client.post(
+                f"/api/chat/rooms/{room}/messages",
+                json={
+                    "body": "점수 재계산 중에도 보존할 테스트 대화",
+                    "client_id": str(uuid4()),
+                },
+            )
             assert sent.status_code == 200, sent.text
         yield client, clock, old_engine, day, first, second, empty
 
@@ -179,15 +218,24 @@ def test_apply_recalculates_all_today_scores_and_preserves_every_other_record(mi
     state = client.get("/api/state").json()
     assert state["model"]["ready"] is True
     assert datetime.fromisoformat(state["model"]["scores_updated_at"]) == clock["now"]
-    assert ranking_without_scores(state["ranking"]) == ranking_without_scores(before_state["ranking"])
+    assert ranking_without_scores(state["ranking"]) == ranking_without_scores(
+        before_state["ranking"]
+    )
     assert state["game"]["started_at"] == before_state["game"]["started_at"]
     assert state["game"]["elapsed_ms"] == before_state["game"]["elapsed_ms"]
     assert state["game"]["attempts"] == before_state["game"]["attempts"]
     assert [row["word"] for row in state["game"]["guesses"]] == ["산책", "바다"]
-    best = {row["nickname"]: row["best_similarity"]
-            for rows in state["ranking"].values() for row in rows}
-    assert best == {"전환진행사용자": 72.125, "전환완료먼저": 100.0,
-                    "전환완료나중": 100.0, "전환무입력": None}
+    best = {
+        row["nickname"]: row["best_similarity"]
+        for rows in state["ranking"].values()
+        for row in rows
+    }
+    assert best == {
+        "전환진행사용자": 72.125,
+        "전환완료먼저": 100.0,
+        "전환완료나중": 100.0,
+        "전환무입력": None,
+    }
     assert first.get("/api/state").json()["game"]["status"] == "completed"
     assert second.get("/api/state").json()["game"]["status"] == "completed"
     assert empty.get("/api/state").json()["game"]["attempts"] == 0
@@ -232,8 +280,10 @@ def test_dry_run_reports_new_scores_but_changes_nothing(mixed_games):
     assert result["updated_count"] == 0
     assert result["scores_updated_at"] is None
     assert_summary(result["old_scores"], [row["similarity"] for row in today_guesses(before, day)])
-    assert_summary(result["new_scores"], [UpdateTestEngine.scores[row["word"]]
-                                         for row in today_guesses(before, day)])
+    assert_summary(
+        result["new_scores"],
+        [UpdateTestEngine.scores[row["word"]] for row in today_guesses(before, day)],
+    )
     assert stored_records() == before
 
 
@@ -313,7 +363,11 @@ def test_only_current_korean_date_can_be_selected(runtime, offset):
     before = stored_records()
     engine = UpdateTestEngine()
     with pytest.raises(ScoreUpdateError) as raised:
-        update(engine, old_engine.fingerprint, target_date=date.fromisoformat(day) + timedelta(days=offset))
+        update(
+            engine,
+            old_engine.fingerprint,
+            target_date=date.fromisoformat(day) + timedelta(days=offset),
+        )
     assert raised.value.code == "wrong_date"
     assert engine.calls == []
     assert stored_records() == before
@@ -341,8 +395,13 @@ def test_midnight_during_inference_cancels_every_change(runtime):
     engine.after_score = lambda: clock.update(now=datetime(2026, 9, 19, 15, 0, 0, tzinfo=UTC))
     with db.connect() as conn:
         with pytest.raises(ScoreUpdateError) as raised:
-            recalculate_scores(conn, engine, from_fingerprint=old_engine.fingerprint,
-                               apply=True, now=lambda: clock["now"])
+            recalculate_scores(
+                conn,
+                engine,
+                from_fingerprint=old_engine.fingerprint,
+                apply=True,
+                now=lambda: clock["now"],
+            )
         assert raised.value.code == "date_changed"
     assert engine.calls
     # state API는 자정 만료 정리를 하므로 DB를 직접 비교해 전환 도구만 평가합니다.
@@ -363,8 +422,11 @@ def test_unavailable_model_cannot_change_records(runtime):
     assert stored_records() == before
 
 
-@pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf"), -100.01, 100.01],
-                         ids=["nan", "positive-infinity", "negative-infinity", "below-range", "above-range"])
+@pytest.mark.parametrize(
+    "invalid",
+    [float("nan"), float("inf"), -float("inf"), -100.01, 100.01],
+    ids=["nan", "positive-infinity", "negative-infinity", "below-range", "above-range"],
+)
 def test_nonfinite_or_out_of_range_scores_cancel_update(runtime, monkeypatch, invalid):
     client, _, old_engine = runtime
     day, _ = begin(client)
@@ -454,11 +516,16 @@ def test_later_database_write_failure_rolls_back_first_score_even_when_caught(ru
     assert submit(client, day, "바다").status_code == 200
     # 두 번째 새 점수만 거부합니다. 기존 점수와 첫 번째 UPDATE는 이 제약을 통과합니다.
     with db.connect() as conn:
-        conn.execute("ALTER TABLE guesses ADD CONSTRAINT test_recalc_second_write_failure CHECK (similarity <> 72.125)")
+        conn.execute(
+            "ALTER TABLE guesses ADD CONSTRAINT test_recalc_second_write_failure "
+            "CHECK (similarity <> 72.125)"
+        )
     before = stored_records()
     with db.connect() as conn:
         with pytest.raises(CheckViolation):
-            recalculate_scores(conn, UpdateTestEngine(), from_fingerprint=old_engine.fingerprint, apply=True)
+            recalculate_scores(
+                conn, UpdateTestEngine(), from_fingerprint=old_engine.fingerprint, apply=True
+            )
         # 전환 함수가 자체 트랜잭션을 복구하여 같은 연결도 바로 다시 쓸 수 있어야 합니다.
         rows = conn.execute("SELECT similarity FROM guesses ORDER BY id").fetchall()
         assert [row["similarity"] for row in rows] == [23.4567, 23.4567]
@@ -472,7 +539,9 @@ def test_model_change_during_inference_cancels_update(runtime, field):
     assert submit(client, day, "산책").status_code == 200
     before = stored_records()
     engine = UpdateTestEngine()
-    engine.after_score = lambda: setattr(engine, field, False if field == "ready" else "unexpected-version")
+    engine.after_score = lambda: setattr(
+        engine, field, False if field == "ready" else "unexpected-version"
+    )
     with pytest.raises(ScoreUpdateError) as raised:
         update(engine, old_engine.fingerprint)
     assert raised.value.code == "model_unavailable"

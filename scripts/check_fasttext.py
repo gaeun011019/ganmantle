@@ -8,6 +8,7 @@
 공식 0.9.2의 train_unsupervised는 seed 인자를 받지 않아 기본 seed=0과 thread=1을
 사용합니다. 이 검사는 구현 호환성 검사이며 한국어 의미 품질 검사가 아닙니다.
 """
+
 from __future__ import annotations
 
 from contextlib import closing
@@ -31,8 +32,19 @@ INSTALL = "검증 환경에서 python -m pip install fasttext-wheel==0.9.2를 �
 def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: int) -> dict:
     from app.fasttext_bin import FastTextBin, FastTextVectorError
 
-    settings = dict(model="skipgram", dim=12, bucket=128, minn=minn, maxn=maxn,
-                    minCount=1, epoch=5, thread=1, ws=3, neg=2, verbose=0)
+    settings = dict(
+        model="skipgram",
+        dim=12,
+        bucket=128,
+        minn=minn,
+        maxn=maxn,
+        minCount=1,
+        epoch=5,
+        thread=1,
+        ws=3,
+        neg=2,
+        verbose=0,
+    )
     trained = fasttext.train_unsupervised(input=str(corpus), **settings)
     filename = directory / f"tiny-{minn}-{maxn}.bin"
     trained.save_model(str(filename))
@@ -46,18 +58,31 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
     if seed not in (None, 0):
         raise AssertionError("공식 기본 seed=0과 다릅니다.")
     cases = [
-        ("IV 한글", "강아지", True), ("IV 짧은 단어", "가", True),
-        ("IV 반복 글자", "가가가가가", True), ("IV UTF-8", "café", True),
-        ("IV 4바이트 UTF-8", "😀", True), ("문장 끝 토큰", "</s>", True),
+        ("IV 한글", "강아지", True),
+        ("IV 짧은 단어", "가", True),
+        ("IV 반복 글자", "가가가가가", True),
+        ("IV UTF-8", "café", True),
+        ("IV 4바이트 UTF-8", "😀", True),
+        ("문장 끝 토큰", "</s>", True),
         ("OOV 한글", "초록구름산책냥", False),
         ("OOV 혼합 UTF-8", "café한국어😀", False),
         ("OOV NFD", unicodedata.normalize("NFD", "가나다"), False),
         ("OOV 반복 subword", "가" * 24, False),
-        ("OOV 서로 다른 subword의 bucket 충돌", "".join(chr(0xAC00 + i) for i in range(160)), False),
-        ("OOV 1음절", "쀍", False), ("OOV 2음절", "쀍뾱", False),
+        (
+            "OOV 서로 다른 subword의 bucket 충돌",
+            "".join(chr(0xAC00 + i) for i in range(160)),
+            False,
+        ),
+        ("OOV 1음절", "쀍", False),
+        ("OOV 2음절", "쀍뾱", False),
     ]
-    report = {"settings": settings, "seed_from_native_args": seed,
-              "file_bytes": filename.stat().st_size, "vectors": [], "cosines": []}
+    report = {
+        "settings": settings,
+        "seed_from_native_args": seed,
+        "file_bytes": filename.stat().st_size,
+        "vectors": [],
+        "cosines": [],
+    }
     vector_pairs = {}
     with closing(FastTextBin(filename)) as mapped:
         assert mapped.dimension == 12 and mapped.bucket == 128
@@ -72,12 +97,18 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
             assert mapped._subword_ids(word) == ids, f"subword 순서·hash가 다릅니다: {label}"
             reference = np.asarray(native.get_word_vector(word), dtype=np.float32)
             assert reference.shape == (12,) and np.isfinite(reference).all(), label
-            row = {"case": label, "in_vocabulary": expected_known, "subwords": len(ids),
-                   "repeated_ids": len(ids) - len(set(ids))}
+            row = {
+                "case": label,
+                "in_vocabulary": expected_known,
+                "subwords": len(ids),
+                "repeated_ids": len(ids) - len(set(ids)),
+            }
             # 작은 학습 모델에는 아직 학습되지 않은 0값 bucket도 있습니다.
             # NFD 등도 실제 native 결과가 0이면 같은 방식으로 명시 거절해야 합니다.
             if minn == 5 and label in ("OOV 1음절", "OOV 2음절"):
-                assert not ids and not np.any(reference), f"5글자 ngram 미만 OOV는 0이어야 합니다: {label}"
+                assert not ids and not np.any(reference), (
+                    f"5글자 ngram 미만 OOV는 0이어야 합니다: {label}"
+                )
                 row["zero_required_by_length"] = True
             if not np.any(reference):
                 try:
@@ -85,7 +116,9 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
                 except FastTextVectorError:
                     row["zero_vector_rejected"] = True
                 else:
-                    raise AssertionError(f"공식 0벡터 입력을 명시적으로 거절하지 않았습니다: {label}")
+                    raise AssertionError(
+                        f"공식 0벡터 입력을 명시적으로 거절하지 않았습니다: {label}"
+                    )
             else:
                 actual = mapped.get_word_vector(word)
                 assert actual.dtype == np.float32 and actual.shape == (12,), label
@@ -93,7 +126,9 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
                 row["max_absolute_difference"] = float(np.max(np.abs(actual - reference)))
                 vector_pairs[label] = (reference, actual)
             if label == "OOV 반복 subword":
-                assert row["repeated_ids"] > 0, "반복 subword 검사 입력이 반복 ID를 만들지 않았습니다."
+                assert row["repeated_ids"] > 0, (
+                    "반복 subword 검사 입력이 반복 ID를 만들지 않았습니다."
+                )
             if label == "OOV 서로 다른 subword의 bucket 충돌":
                 seen = {}
                 collision = False
@@ -115,9 +150,17 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
         for label, (reference, actual) in vector_pairs.items():
             expected_score = cosine100(anchor_reference, reference)
             actual_score = cosine100(anchor_actual, actual)
-            np.testing.assert_allclose(actual_score, expected_score, rtol=1e-6, atol=1e-6, err_msg=label)
-            report["cosines"].append({"case": label, "reference": expected_score,
-                                      "mapped": actual_score, "difference": abs(actual_score - expected_score)})
+            np.testing.assert_allclose(
+                actual_score, expected_score, rtol=1e-6, atol=1e-6, err_msg=label
+            )
+            report["cosines"].append(
+                {
+                    "case": label,
+                    "reference": expected_score,
+                    "mapped": actual_score,
+                    "difference": abs(actual_score - expected_score),
+                }
+            )
     del native
     gc.collect()
     report["passed"] = True
@@ -126,10 +169,19 @@ def check_model(fasttext, np, directory: Path, corpus: Path, minn: int, maxn: in
 
 def main() -> int:
     started = time.perf_counter()
-    report = {"passed": False, "test_only": True, "real_native_reference": True,
-              "production_model_loaded": False, "measured_at_utc": datetime.now(timezone.utc).isoformat(),
-              "python": platform.python_version(), "machine": platform.machine(),
-              "system": platform.platform(), "rtol": 1e-6, "atol": 1e-6, "models": []}
+    report = {
+        "passed": False,
+        "test_only": True,
+        "real_native_reference": True,
+        "production_model_loaded": False,
+        "measured_at_utc": datetime.now(timezone.utc).isoformat(),
+        "python": platform.python_version(),
+        "machine": platform.machine(),
+        "system": platform.platform(),
+        "rtol": 1e-6,
+        "atol": 1e-6,
+        "models": [],
+    }
     try:
         try:
             wheel_version = metadata.version("fasttext-wheel")
@@ -137,15 +189,20 @@ def main() -> int:
         except (metadata.PackageNotFoundError, ImportError) as exc:
             raise RuntimeError(INSTALL) from exc
         if wheel_version != "0.9.2":
-            raise RuntimeError(f"fasttext-wheel==0.9.2가 필요합니다(현재 {wheel_version}). {INSTALL}")
+            raise RuntimeError(
+                f"fasttext-wheel==0.9.2가 필요합니다(현재 {wheel_version}). {INSTALL}"
+            )
         import numpy as np
+
         report["versions"] = {"fasttext-wheel": wheel_version, "numpy": np.__version__}
         with TemporaryDirectory(prefix="ganmantle-fasttext-reference-") as temporary:
             directory = Path(temporary)
             corpus = directory / "tiny-corpus.txt"
-            lines = ["강아지 개 산책 걷다 여행 바다 하늘 가",
-                     "한글 단어 유사도 게임 테스트 가나다 가가가가가",
-                     "café naïve apple banana 😀 🙂 한국어 영어"]
+            lines = [
+                "강아지 개 산책 걷다 여행 바다 하늘 가",
+                "한글 단어 유사도 게임 테스트 가나다 가가가가가",
+                "café naïve apple banana 😀 🙂 한국어 영어",
+            ]
             corpus.write_text("\n".join(lines * 40) + "\n", encoding="utf-8")
             for minn, maxn in ((3, 6), (5, 5)):
                 report["models"].append(check_model(fasttext, np, directory, corpus, minn, maxn))
@@ -156,10 +213,14 @@ def main() -> int:
     report["seconds"] = round(time.perf_counter() - started, 3)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    summary = {"passed": report["passed"], "models": len(report["models"]),
-               "vector_cases": sum(len(model["vectors"]) for model in report["models"]),
-               "cosine_cases": sum(len(model["cosines"]) for model in report["models"]),
-               "seconds": report["seconds"], "result": "test-results/fasttext-reference.json"}
+    summary = {
+        "passed": report["passed"],
+        "models": len(report["models"]),
+        "vector_cases": sum(len(model["vectors"]) for model in report["models"]),
+        "cosine_cases": sum(len(model["cosines"]) for model in report["models"]),
+        "seconds": report["seconds"],
+        "result": "test-results/fasttext-reference.json",
+    }
     if "error" in report:
         summary["error"] = report["error"]
     print(json.dumps(summary, ensure_ascii=False))

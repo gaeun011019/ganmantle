@@ -80,40 +80,64 @@ export class ApiError extends Error {
     super(message);
   }
 }
+
+type RequestOptions = {
+  timeoutMs?: number;
+  invalidResponseMessage?: string;
+  failureCode?: string;
+  failureMessage?: string;
+};
+
 export async function request<T = State>(
   path: string,
   body?: object,
   signal?: AbortSignal,
+  {
+    timeoutMs = 45000,
+    invalidResponseMessage = '서버 응답을 확인할 수 없어요. 잠시 후 다시 연결해 주세요.',
+    failureCode = 'request_failed',
+    failureMessage = '요청을 처리하지 못했어요. 입력을 확인하고 다시 시도해 주세요.',
+  }: RequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    method: body ? 'POST' : 'GET',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    signal: signal
-      ? AbortSignal.any([signal, AbortSignal.timeout(45000)])
-      : AbortSignal.timeout(45000),
-  });
-  let data;
+  // Safari에서도 요청 제한 시간과 호출한 화면의 취소를 함께 처리합니다.
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
+    timeoutMs,
+  );
+  const abortFromCaller = () => controller.abort(signal?.reason);
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else {
+    signal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
+
   try {
-    data = await response.json();
-  } catch {
-    throw new ApiError(
-      response.status,
-      'invalid_response',
-      '서버 응답을 확인할 수 없어요. 잠시 후 다시 연결해 주세요.',
-    );
+    const response = await fetch(`/api${path}`, {
+      method: body ? 'POST' : 'GET',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      throw new ApiError(response.status, 'invalid_response', invalidResponseMessage);
+    }
+    if (!response.ok) {
+      const detail = data.detail;
+      throw new ApiError(
+        response.status,
+        detail?.code || failureCode,
+        typeof detail?.message === 'string' ? detail.message : failureMessage,
+      );
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abortFromCaller);
   }
-  if (!response.ok) {
-    const detail = data.detail;
-    throw new ApiError(
-      response.status,
-      detail?.code || 'request_failed',
-      typeof detail?.message === 'string'
-        ? detail.message
-        : '요청을 처리하지 못했어요. 입력을 확인하고 다시 시도해 주세요.',
-    );
-  }
-  return data as T;
 }

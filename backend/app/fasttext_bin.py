@@ -22,6 +22,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
+
 from __future__ import annotations
 
 import mmap
@@ -73,33 +74,56 @@ class FastTextBin:
                 if magic != 793712314 or version != 12:
                     raise FastTextFormatError("fastText magic 793712314, 버전 12만 지원합니다.")
                 args = read("<12id")
-                self.dimension, self.bucket, self.minn, self.maxn = args[0], args[8], args[9], args[10]
+                self.dimension, self.bucket, self.minn, self.maxn = (
+                    args[0],
+                    args[8],
+                    args[9],
+                    args[10],
+                )
                 if args[7] not in (1, 2):
                     raise FastTextFormatError("fastText 단어벡터 CBOW/skip-gram 모델만 지원합니다.")
-                if not (1 <= self.dimension <= 4096 and self.bucket > 0
-                        and 1 <= self.minn <= self.maxn <= 256
-                        and args[6] in (1, 2, 3, 4)
-                        and args[1] > 0 and args[2] > 0 and args[3] >= 0
-                        and args[4] >= 0 and args[5] > 0 and args[11] > 0
-                        and np.isfinite(args[12]) and args[12] >= 0):
-                    raise FastTextFormatError("fastText 차원·subword·학습 설정 필드가 잘못되었습니다.")
+                if not (
+                    1 <= self.dimension <= 4096
+                    and self.bucket > 0
+                    and 1 <= self.minn <= self.maxn <= 256
+                    and args[6] in (1, 2, 3, 4)
+                    and args[1] > 0
+                    and args[2] > 0
+                    and args[3] >= 0
+                    and args[4] >= 0
+                    and args[5] > 0
+                    and args[11] > 0
+                    and np.isfinite(args[12])
+                    and args[12] >= 0
+                ):
+                    raise FastTextFormatError(
+                        "fastText 차원·subword·학습 설정 필드가 잘못되었습니다."
+                    )
                 size, self.nwords, nlabels, ntokens, pruned = read("<iiiqq")
-                if not (size == self.nwords > 0 and nlabels == 0 and ntokens >= 0
-                        and size <= (len(data) - offset) // 10):
+                if not (
+                    size == self.nwords > 0
+                    and nlabels == 0
+                    and ntokens >= 0
+                    and size <= (len(data) - offset) // 10
+                ):
                     raise FastTextFormatError("fastText 사전 개수·유형·크기가 잘못되었습니다.")
                 if pruned != -1:
                     raise FastTextFormatError("축약된 fastText 사전은 지원하지 않습니다.")
                 for index in range(size):
                     end = data.find(b"\0", offset, min(len(data), offset + 65537))
                     if end <= offset:
-                        raise FastTextFormatError("fastText 사전 단어의 끝이나 길이가 잘못되었습니다.")
+                        raise FastTextFormatError(
+                            "fastText 사전 단어의 끝이나 길이가 잘못되었습니다."
+                        )
                     word = data[offset:end]
                     # 공식 std::string 사전은 UTF-8이 아닌 토큰도 보존합니다.
                     # 원본 bytes를 유지해야 단어 ID와 행렬 행 번호가 바뀌지 않습니다.
                     offset = end + 1
                     count, kind = read("<qb")
                     if count < 0 or kind != 0 or word in self._words:
-                        raise FastTextFormatError("fastText 사전 항목의 유형·빈도·중복이 잘못되었습니다.")
+                        raise FastTextFormatError(
+                            "fastText 사전 항목의 유형·빈도·중복이 잘못되었습니다."
+                        )
                     self._words[word] = index
                 if read("<B")[0] != 0:
                     raise FastTextFormatError("양자화된 fastText 입력 행렬은 지원하지 않습니다.")
@@ -114,10 +138,18 @@ class FastTextBin:
                 if (output_rows, output_columns) != (self.nwords, self.dimension):
                     raise FastTextFormatError("fastText 출력 행렬 크기가 사전·차원과 다릅니다.")
                 if offset + output_rows * output_columns * 4 != len(data):
-                    raise FastTextFormatError("fastText 행렬 데이터가 잘렸거나 파일 뒤에 추가 데이터가 있습니다.")
+                    raise FastTextFormatError(
+                        "fastText 행렬 데이터가 잘렸거나 파일 뒤에 추가 데이터가 있습니다."
+                    )
                 # 사전 스캔용 mmap은 곧 닫고, input 행렬만 별도 연결합니다.
-                self._input = np.memmap(stream, dtype="<f4", mode="r", offset=input_offset,
-                                        shape=(rows, columns), order="C")
+                self._input = np.memmap(
+                    stream,
+                    dtype="<f4",
+                    mode="r",
+                    offset=input_offset,
+                    shape=(rows, columns),
+                    order="C",
+                )
                 # 희소한 단어 행 조회에서 Linux의 불필요한 순차 미리 읽기를 줄입니다.
                 try:
                     self._input._mmap.madvise(mmap.MADV_RANDOM)
@@ -145,7 +177,9 @@ class FastTextBin:
                 end += 1
                 while end < len(wrapped) and wrapped[end] & 0xC0 == 0x80:
                     end += 1
-                if length >= self.minn and not (length == 1 and (start == 0 or end == len(wrapped))):
+                if length >= self.minn and not (
+                    length == 1 and (start == 0 or end == len(wrapped))
+                ):
                     ids.append(self.nwords + _hash(wrapped[start:end]) % self.bucket)
         return ids  # 같은 hash가 반복돼도 횟수를 보존해야 공식 평균과 같습니다.
 

@@ -1,4 +1,5 @@
 """고정 비교 사전의 실제 벡터로 정답별 상위 1,000위와 기준 점수를 계산합니다."""
+
 from bisect import bisect_right
 from functools import lru_cache
 import hashlib
@@ -41,21 +42,30 @@ class WordRankIndex:
                     raise ValueError("단어 벡터 파일 검증 실패")
             self.words = json.loads((directory / "words.json").read_text(encoding="utf-8"))
             self.excluded_words = metadata["excluded_words"]
-            if (not isinstance(self.words, list) or not isinstance(self.excluded_words, list)
-                    or not all(isinstance(word, str) for word in self.words + self.excluded_words)
-                    or self.words != sorted(set(self.words))
-                    or self.excluded_words != sorted(set(self.excluded_words))
-                    or set(self.words) & set(self.excluded_words)
-                    or set(self.words) | set(self.excluded_words) != set(get_words())
-                    or len(self.words) < 1002):
+            if (
+                not isinstance(self.words, list)
+                or not isinstance(self.excluded_words, list)
+                or not all(isinstance(word, str) for word in self.words + self.excluded_words)
+                or self.words != sorted(set(self.words))
+                or self.excluded_words != sorted(set(self.excluded_words))
+                or set(self.words) & set(self.excluded_words)
+                or set(self.words) | set(self.excluded_words) != set(get_words())
+                or len(self.words) < 1002
+            ):
                 raise ValueError("단어 목록 불일치 또는 부족")
             self.vectors = np.load(directory / "vectors.npy", mmap_mode="r", allow_pickle=False)
-            if (metadata["count"] != len(self.words) or metadata["dimension"] != dimension
-                    or self.vectors.shape != (len(self.words), dimension) or self.vectors.dtype != np.dtype("<f4")):
+            if (
+                metadata["count"] != len(self.words)
+                or metadata["dimension"] != dimension
+                or self.vectors.shape != (len(self.words), dimension)
+                or self.vectors.dtype != np.dtype("<f4")
+            ):
                 raise ValueError("단어 벡터 크기 불일치")
             for start in range(0, len(self.words), 4096):
-                block = self.vectors[start:start + 4096]
-                if not np.isfinite(block).all() or not np.allclose(np.linalg.norm(block, axis=1), 1, atol=0.0001):
+                block = self.vectors[start : start + 4096]
+                if not np.isfinite(block).all() or not np.allclose(
+                    np.linalg.norm(block, axis=1), 1, atol=0.0001
+                ):
                     raise ValueError("잘못된 단어 벡터")
             self.positions = {word: index for index, word in enumerate(self.words)}
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -90,15 +100,24 @@ class WordRankIndex:
             previous = score
         # 완료한 본인에게만 별도 API로 공개합니다. 일반 상태 응답에는 넣지 않습니다.
         words = [
-            {"word": self.words[index], "similarity": float(scores[index]),
-             "rank": ranks[self.words[index]]}
+            {
+                "word": self.words[index],
+                "similarity": float(scores[index]),
+                "rank": ranks[self.words[index]],
+            }
             for index in order[:1000]
         ]
-        return {"ranks": ranks, "words": words, "sorted_scores": sorted_scores, "reference": {
-            "vocabulary_size": len(self.words),
-            "top1": float(scores[order[0]]), "top10": float(scores[order[9]]),
-            "top1000": float(scores[order[999]]),
-        }}
+        return {
+            "ranks": ranks,
+            "words": words,
+            "sorted_scores": sorted_scores,
+            "reference": {
+                "vocabulary_size": len(self.words),
+                "top1": float(scores[order[0]]),
+                "top10": float(scores[order[9]]),
+                "top1000": float(scores[order[999]]),
+            },
+        }
 
 
 def rank_for_score(indexed: dict | None, word: str, score: float | None) -> int | None:
